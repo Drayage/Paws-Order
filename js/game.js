@@ -36,10 +36,17 @@ export function createGame({ mode, options = {}, players, seed }) {
   else if (mode === MODES.FTF) handSize = FTF_HAND_SIZE;
   else handSize = normalHandSize(players.length);
 
+  // 필드 기준 '아직 안 나온 카드' 계산용 전체 카드 목록 (딜링 전 스냅샷)
+  const catalog = {};
+  for (const [key, deck] of Object.entries(decks)) {
+    catalog[key] = deck.map((c) => ({ ...c }));
+  }
+
   const state = {
     mode,
     options: { extreme: false, fire: false, joker: false, range: false, ...options },
     decks,
+    catalog,
     piles,
     players: players.map((p) => ({ ...p, hand: [] })),
     handSize,
@@ -47,6 +54,7 @@ export function createGame({ mode, options = {}, players, seed }) {
     turnCount: 0,
     turn: freshTurn(),
     fires: [],           // [{ pileId, cardId, deadline }]
+    lastPlay: null,      // { cardId, pileId, playerId, ts } — 방금 낸 카드 강조용
     phase: 'playing',    // playing | won | lost
     winner: null,        // FTF 승자 playerId
     loseReason: null,
@@ -126,6 +134,7 @@ export function playCard(state, playerId, cardId, pileId) {
   player.hand.splice(player.hand.indexOf(card), 1);
   pile.cards.push(card);
   state.turn.plays.push({ cardId, pileId, playerId, kind: res.kind });
+  state.lastPlay = { cardId, pileId, playerId, ts: Date.now() };
   if (!state.turn.pilesUsed.includes(pileId)) state.turn.pilesUsed.push(pileId);
   if (res.kind === 'donate') state.turn.donated = true;
   addLog(state, `${player.name}: ${cardDisplay(card)} → ${pileShortLabel(state, pile)}${KIND_TAG[res.kind] || ''}`);

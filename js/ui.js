@@ -1,5 +1,5 @@
 // 렌더링 전담 모듈 — DOM 갱신만 담당, 게임 로직은 건드리지 않음
-import { MODES, SPECIAL_INFO, ANIMAL_AVATARS, ONE_TIME_SPECIALS, PERSISTENT_SPECIALS } from './constants.js';
+import { MODES, SPECIAL_INFO, COLOR_INFO, JELLY_COLORS, ANIMAL_AVATARS, ONE_TIME_SPECIALS, PERSISTENT_SPECIALS } from './constants.js';
 import { canPlace, minPlaysRequired, canEndTurn, activeEffects } from './rules.js';
 
 function specialBadgeColor(specialId) {
@@ -21,11 +21,12 @@ function cardLabel(card) {
   return String(card.value);
 }
 
-// 카드 배경 테마 클래스: 일반 모드=10단위, 퀵앤이지=색상, 페이스투페이스=소유자 기준
-function cardThemeClass(card, mode, isMine = true) {
+// 카드 배경 테마 클래스: 일반 모드=10단위, 퀵앤이지=색상, 페이스투페이스=카드의 원래 소유자 기준
+// (FTF에서 상대 더미에 선물해도 카드 색은 낸 사람 색을 유지)
+function cardThemeClass(card, mode, localPlayerId = null) {
   if (card.type !== 'number') return '';
   if (mode === MODES.QUICK) return `jelly-${card.color}`;
-  if (mode === MODES.FTF) return isMine ? 'owner-mine' : 'owner-theirs';
+  if (mode === MODES.FTF) return card.owner === localPlayerId ? 'owner-mine' : 'owner-theirs';
   return `decade-${Math.min(9, Math.floor(card.value / 10))}`;
 }
 
@@ -97,9 +98,14 @@ function renderPile(state, pile, ctx) {
   const topCardData = pile.cards.length ? pile.cards[pile.cards.length - 1] : null;
   let topEl;
   if (topCardData) {
-    const theme = cardThemeClass(topCardData, state.mode, isFtf ? isMineDir : true);
+    const theme = cardThemeClass(topCardData, state.mode, ctx.localPlayerId);
     topEl = renderCardEl(topCardData, { themeClass: theme });
     topEl.classList.add('pile-top');
+    // 방금 낸 카드 강조 + 놓일 때 팡! 이펙트
+    if (state.lastPlay && state.lastPlay.cardId === topCardData.id) {
+      topEl.classList.add('last-played');
+      if (Date.now() - state.lastPlay.ts < 1200) topEl.classList.add('just-placed');
+    }
   } else {
     topEl = document.createElement('div');
     topEl.className = 'pile-top empty';
@@ -133,7 +139,14 @@ function renderPile(state, pile, ctx) {
   inspect.addEventListener('click', (e) => { e.stopPropagation(); ctx.onInspectPile(pile.id); });
   el.appendChild(inspect);
 
-  if (selectable) el.addEventListener('click', () => ctx.onPlayToPile(pile.id));
+  if (ctx.focusPileId === pile.id) el.classList.add('focused');
+
+  if (selectable) {
+    el.addEventListener('click', () => ctx.onPlayToPile(pile.id));
+  } else {
+    // 카드를 고르지 않은 상태에서 더미를 누르면, 이 더미에 낼 수 있는 손패 카드를 강조
+    el.addEventListener('click', () => ctx.onTogglePileFocus(pile.id));
+  }
   return el;
 }
 
@@ -186,15 +199,44 @@ function renderPlayersStrip(state, ctx, bubbles) {
     info.className = 'info';
     info.innerHTML = `<b>${p.name}${isLocal ? ' (나)' : ''}</b><span>${p.isAI ? '🤖 AI' : '👤'} 카드 ${p.hand.length}장</span>`;
     chip.appendChild(info);
-    const bubbleText = bubbles.get(p.id);
-    if (bubbleText) {
-      const b = document.createElement('div');
-      b.className = 'bubble';
-      b.textContent = bubbleText;
-      chip.appendChild(b);
-    }
+    if (bubbles.get(p.id)) chip.classList.add('speaking');
     if (isLocal) chip.addEventListener('click', () => ctx.onAvatarClick());
     strip.appendChild(chip);
+  });
+}
+
+// 손패 정렬: draw(뽑은 순) | asc(오름차순) | color(색깔별, 퀵앤이지)
+function sortHand(hand, sortMode) {
+  if (sortMode === 'draw') return hand;
+  const typeRank = (c) => (c.type === 'number' ? 0 : c.type === 'range' ? 1 : 2);
+  const sorted = [...hand];
+  if (sortMode === 'color') {
+    sorted.sort((a, b) => typeRank(a) - typeRank(b)
+      || JELLY_COLORS.indexOf(a.color) - JELLY_COLORS.indexOf(b.color)
+      || (a.value ?? 0) - (b.value ?? 0));
+  } else {
+    sorted.sort((a, b) => typeRank(a) - typeRank(b)
+      || (a.value ?? a.lo ?? 0) - (b.value ?? b.lo ?? 0)
+      || JELLY_COLORS.indexOf(a.color) - JELLY_COLORS.indexOf(b.color));
+  }
+  return sorted;
+}
+
+function renderSortButtons(state, ctx) {
+  const wrap = $('#sort-buttons');
+  wrap.innerHTML = '';
+  const options = [
+    { id: 'draw', label: '🃏 뽑은 순' },
+    { id: 'asc', label: '🔢 오름차순' },
+  ];
+  if (state.mode === MODES.QUICK) options.push({ id: 'color', label: '🎨 색깔별' });
+  options.forEach((o) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sort-btn' + (ctx.handSort === o.id ? ' active' : '');
+    btn.textContent = o.label;
+    btn.addEventListener('click', () => ctx.onSetSort(o.id));
+    wrap.appendChild(btn);
   });
 }
 
@@ -203,8 +245,9 @@ function renderHand(state, ctx) {
   handWrap.innerHTML = '';
   const player = state.players.find((p) => p.id === ctx.localPlayerId);
   const isMyTurn = state.players[state.current].id === ctx.localPlayerId;
-  player.hand.forEach((card) => {
-    const theme = cardThemeClass(card, state.mode, true);
+  const focusPile = ctx.focusPileId ? state.piles.find((p) => p.id === ctx.focusPileId) : null;
+  sortHand(player.hand, ctx.handSort).forEach((card) => {
+    const theme = cardThemeClass(card, state.mode, ctx.localPlayerId);
     let playable = null;
     let trickIcon = null;
     if (isMyTurn && state.phase === 'playing') {
@@ -225,6 +268,13 @@ function renderHand(state, ctx) {
       playable,
       trickIcon,
     });
+    // 더미를 눌러둔 상태면, 그 더미에 낼 수 있는 카드만 도드라지게
+    if (focusPile) {
+      const fits = canPlace(state, ctx.localPlayerId, card, focusPile).ok;
+      el.classList.toggle('pile-match', fits);
+      el.classList.toggle('pile-mismatch', !fits);
+    }
+    if (ctx.drawnIds && ctx.drawnIds.has(card.id)) el.classList.add('drawn');
     if (!isMyTurn) el.style.opacity = '0.6';
     handWrap.appendChild(el);
   });
@@ -275,10 +325,28 @@ function renderLog(state) {
   panel.scrollTop = panel.scrollHeight;
 }
 
+// 말풍선 토스트 — 플레이어 칩에 붙이면 UI에 가려지므로 화면 상단 고정 레이어에 표시
+function renderBubbleToasts(state, ctx, bubbles) {
+  const wrap = $('#bubble-toasts');
+  wrap.innerHTML = '';
+  for (const [playerId, text] of bubbles) {
+    const idx = state.players.findIndex((p) => p.id === playerId);
+    if (idx === -1) continue;
+    const player = state.players[idx];
+    const toast = document.createElement('div');
+    toast.className = 'bubble-toast';
+    toast.innerHTML = `<span class="toast-avatar">${avatarFor(idx).emoji}</span><b>${player.name}</b><span class="toast-text"></span>`;
+    toast.querySelector('.toast-text').textContent = text;
+    wrap.appendChild(toast);
+  }
+}
+
 export function renderGame(state, ctx, bubbles = new Map()) {
   renderDeckCounters(state, ctx);
   renderPlayersStrip(state, ctx, bubbles);
+  renderBubbleToasts(state, ctx, bubbles);
   renderPilesArea(state, ctx);
+  renderSortButtons(state, ctx);
   renderHand(state, ctx);
   renderTurnInfo(state, ctx);
   renderLog(state);
@@ -311,40 +379,44 @@ export function buildPileHistoryBody(state, pileId, localPlayerId) {
   }
   const row = document.createElement('div');
   row.className = 'pile-history-row';
-  const isMine = pile.owner ? pile.owner === localPlayerId : true;
   pile.cards.forEach((card) => {
-    const theme = cardThemeClass(card, state.mode, isMine);
+    const theme = cardThemeClass(card, state.mode, localPlayerId);
     row.appendChild(renderCardEl(card, { themeClass: theme }));
   });
   wrap.appendChild(row);
   return wrap;
 }
 
-// 덱에 남아있는(아직 등장하지 않은) 카드 — 10단위로 정리
+// 필드에 아직 공개되지 않은 카드 (전체 구성 − 필드에 놓인 카드 = 덱 + 모든 손패)
+// 손패까지 합쳐서 보여주므로 특정 플레이어의 카드를 유추할 수 없음
 export function buildDeckModalBody(state, deckKey, localPlayerId) {
   const wrap = document.createElement('div');
-  if (state.mode === MODES.FTF && deckKey !== localPlayerId) {
-    const n = document.createElement('div');
-    n.className = 'pile-history-empty';
-    n.textContent = `상대 덱에는 아직 나오지 않은 카드가 ${state.decks[deckKey].length}장 있어요. (경쟁 모드라 내용은 비공개예요)`;
-    wrap.appendChild(n);
-    return wrap;
-  }
-  const cards = state.decks[deckKey] || state.decks.shared || [];
+
+  const fieldIds = new Set();
+  for (const pile of state.piles) for (const c of pile.cards) fieldIds.add(c.id);
+
+  const catalog = state.catalog?.[deckKey] || state.catalog?.shared || [];
+  const cards = catalog.filter((c) => !fieldIds.has(c.id));
+
+  const note = document.createElement('div');
+  note.className = 'deck-list-title';
+  note.style.marginBottom = '8px';
+  note.textContent = state.mode === MODES.FTF
+    ? '덱과 손패를 합쳐 보여줘요 (손패 유추 불가)'
+    : '덱과 모든 친구들의 손패를 합쳐 보여줘요 (손패 유추 불가)';
+  wrap.appendChild(note);
+
   const numberCards = cards.filter((c) => c.type === 'number');
   const jokers = cards.filter((c) => c.type === 'joker');
   const ranges = cards.filter((c) => c.type === 'range');
 
-  const maxValue = numberCards.reduce((m, c) => Math.max(m, c.value), 0);
-  for (let start = 0; start <= maxValue; start += 10) {
-    const end = start + 9;
-    const values = numberCards.filter((c) => c.value >= start && c.value <= end).map((c) => c.value).sort((a, b) => a - b);
-    if (!values.length) continue;
+  const addGroup = (titleText, values, hex = null) => {
+    if (!values.length) return;
     const gEl = document.createElement('div');
     gEl.className = 'deck-list-group';
     const title = document.createElement('div');
     title.className = 'deck-list-title';
-    title.textContent = `${start}-${end} (${values.length}장)`;
+    title.textContent = titleText;
     gEl.appendChild(title);
     const row = document.createElement('div');
     row.className = 'deck-chip-row';
@@ -352,43 +424,38 @@ export function buildDeckModalBody(state, deckKey, localPlayerId) {
       const chip = document.createElement('span');
       chip.className = 'deck-chip';
       chip.textContent = v;
+      if (hex) chip.style.boxShadow = `0 0 0 2px ${hex} inset`;
       row.appendChild(chip);
     });
     gEl.appendChild(row);
     wrap.appendChild(gEl);
+  };
+
+  if (state.mode === MODES.QUICK) {
+    // 퀵앤이지는 색깔별로 정리
+    for (const color of JELLY_COLORS) {
+      const values = numberCards.filter((c) => c.color === color).map((c) => c.value).sort((a, b) => a - b);
+      addGroup(`${COLOR_INFO[color].label} (${values.length}장)`, values, COLOR_INFO[color].hex);
+    }
+  } else {
+    const maxValue = numberCards.reduce((m, c) => Math.max(m, c.value), 0);
+    for (let start = 0; start <= maxValue; start += 10) {
+      const end = start + 9;
+      const values = numberCards.filter((c) => c.value >= start && c.value <= end).map((c) => c.value).sort((a, b) => a - b);
+      addGroup(`${start}-${end} (${values.length}장)`, values);
+    }
   }
-  if (jokers.length) {
-    const gEl = document.createElement('div');
-    gEl.className = 'deck-list-group';
-    gEl.innerHTML = `<div class="deck-list-title">🐼 조커 (${jokers.length}장)</div>`;
-    wrap.appendChild(gEl);
-  }
-  if (ranges.length) {
-    const gEl = document.createElement('div');
-    gEl.className = 'deck-list-group';
-    const title = document.createElement('div');
-    title.className = 'deck-list-title';
-    title.textContent = `🏕️ 레인지 (${ranges.length}장)`;
-    gEl.appendChild(title);
-    const row = document.createElement('div');
-    row.className = 'deck-chip-row';
-    ranges.forEach((r) => {
-      const chip = document.createElement('span');
-      chip.className = 'deck-chip';
-      chip.textContent = `${r.lo}-${r.hi}`;
-      row.appendChild(chip);
-    });
-    gEl.appendChild(row);
-    wrap.appendChild(gEl);
-  }
-  if (!wrap.children.length) {
-    wrap.innerHTML = '<div class="pile-history-empty">덱에 남은 카드가 없어요!</div>';
+  if (jokers.length) addGroup(`조커 (${jokers.length}장)`, jokers.map(() => '🐼'));
+  if (ranges.length) addGroup(`레인지 (${ranges.length}장)`, ranges.map((r) => `${r.lo}-${r.hi}`));
+
+  if (!numberCards.length && !jokers.length && !ranges.length) {
+    wrap.innerHTML = '<div class="pile-history-empty">모든 카드가 필드에 나왔어요!</div>';
     return wrap;
   }
   const total = document.createElement('div');
   total.className = 'deck-list-title';
   total.style.marginTop = '8px';
-  total.textContent = `총 ${cards.length}장 남음`;
+  total.textContent = `총 ${cards.length}장 미공개`;
   wrap.appendChild(total);
   return wrap;
 }

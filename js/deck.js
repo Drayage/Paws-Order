@@ -55,21 +55,22 @@ function buildNormalDeck(options) {
   return cards;
 }
 
-// 퀵 앤 이지: 숫자 1~50, 색상 5종이 전 구간에 고르게 분포 (색상별 10장)
-// 색상 역행 규칙이 의미 있으려면 같은 색이 낮은 수~높은 수에 걸쳐 있어야 함
+// 퀵 앤 이지: 색상 5종 × 각 1~10 (총 50장) — 숫자는 1~10 안에서만 움직임
 function buildQuickDeck() {
   const cards = [];
-  for (let v = 1; v <= 50; v++) {
-    cards.push(card({ type: 'number', value: v, color: JELLY_COLORS[(v - 1) % 5] }));
+  for (const color of JELLY_COLORS) {
+    for (let n = 1; n <= 10; n++) {
+      cards.push(card({ type: 'number', value: n, color }));
+    }
   }
   return cards;
 }
 
-// 페이스 투 페이스: 숫자 2~59 (각자 동일 구성의 개인 덱)
-function buildFtfDeck() {
+// 페이스 투 페이스: 숫자 2~59 (각자 동일 구성의 개인 덱, 카드에 소유자 표시)
+function buildFtfDeck(owner) {
   const cards = [];
   for (let v = 2; v <= 59; v++) {
-    cards.push(card({ type: 'number', value: v }));
+    cards.push(card({ type: 'number', value: v, owner }));
   }
   return cards;
 }
@@ -83,10 +84,10 @@ export function buildSetup(mode, options, playerIds, rng = Math.random) {
   if (mode === MODES.QUICK) {
     return {
       decks: { shared: shuffle(buildQuickDeck(), rng) },
-      // 가상 경계 0/51 → 카드 1과 50도 배치 가능
+      // 숫자가 1~10이므로 경계는 0(오름) / 11(내림)
       piles: [
         pile('up1', 'up', 0, '토끼의 등산로 🐰'),
-        pile('down1', 'down', 51, '두더지의 땅굴 🐹'),
+        pile('down1', 'down', 11, '두더지의 땅굴 🐹'),
       ],
     };
   }
@@ -94,8 +95,8 @@ export function buildSetup(mode, options, playerIds, rng = Math.random) {
     const [a, b] = playerIds;
     return {
       decks: {
-        [a]: shuffle(buildFtfDeck(), rng),
-        [b]: shuffle(buildFtfDeck(), rng),
+        [a]: shuffle(buildFtfDeck(a), rng),
+        [b]: shuffle(buildFtfDeck(b), rng),
       },
       piles: [
         pile('up-' + a, 'up', 1, '등산로 🐰', a),

@@ -125,6 +125,7 @@
   <div class="hand-area">
     <div class="hand-header">
       <h3 style="margin:0;">🖐️ 내 손패</h3>
+      <div class="sort-buttons" id="sort-buttons"></div>
       <span class="turn-hint" id="turn-indicator"></span>
     </div>
     <div class="hand-cards" id="hand-cards"></div>
@@ -132,6 +133,11 @@
       <span class="turn-hint" id="turn-requirement"></span>
       <button class="btn" id="btn-end-turn">차례 마치기 ✅</button>
     </div>
+  </div>
+
+  <div class="gameover-banner" id="gameover-banner" style="display:none;">
+    <span id="gameover-text"></span>
+    <button class="btn small" id="btn-show-result">결과 보기 →</button>
   </div>
 
   <div class="log-panel" id="log-panel"></div>
@@ -150,6 +156,8 @@
 </section>
 
 <footer class="note">브라우저에서 바로 즐기는 협동 숫자 카드 게임 🐾</footer>
+
+<div id="bubble-toasts"></div>
 
 <div class="modal-backdrop" id="modal-backdrop">
   <div class="modal-box">

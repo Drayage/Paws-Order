@@ -1,7 +1,7 @@
 // 부트스트랩 & 화면 전환 & 이벤트 와이어링
 import { MODES, ANIMAL_AVATARS, MAX_PLAYERS } from './constants.js';
 import { createGame, playCard, endTurn } from './game.js';
-import { playAiTurn } from './ai.js';
+import { planAiMove, pickAiSignal } from './ai.js';
 import { renderGame, openModal, closeModal, buildPileHistoryBody, buildDeckModalBody } from './ui.js';
 import { buildSignalButtons, isSignalLocked, signalText } from './signals.js';
 import { isFirebaseConfigured, hostRoom, joinRoom, leaveRoom } from './net.js';
@@ -25,7 +25,12 @@ const appState = {
   game: null,
   localPlayerId: 'human',
   selectedCardId: null,
+  handSort: 'draw',      // draw | asc | color
+  focusPileId: null,     // 더미를 눌러 "여기 낼 수 있는 카드" 강조 중인 더미
+  drawnIds: null,        // 방금 뽑은 카드 id Set (드로우 이펙트용)
   bubbles: new Map(),
+  bubbleTimers: new Map(),
+  resultShown: false,
   net: null, // RoomController when hosting/joining
 };
 
@@ -118,12 +123,21 @@ function buildSoloPlayers() {
   return players;
 }
 
+function resetGameUiState() {
+  appState.selectedCardId = null;
+  appState.focusPileId = null;
+  appState.drawnIds = null;
+  appState.handSort = 'draw';
+  appState.resultShown = false;
+  appState.bubbles.clear();
+  $('#gameover-banner').style.display = 'none';
+}
+
 function startSinglePlayerGame() {
   const players = buildSoloPlayers();
   appState.localPlayerId = 'human';
   appState.game = createGame({ mode: appState.mode, options: appState.options, players });
-  appState.selectedCardId = null;
-  appState.bubbles.clear();
+  resetGameUiState();
   switchScreen('game');
   render();
   maybeRunAiTurn();
@@ -134,13 +148,18 @@ function ctxForUi() {
   return {
     localPlayerId: appState.localPlayerId,
     selectedCardId: appState.selectedCardId,
+    handSort: appState.handSort,
+    focusPileId: appState.focusPileId,
+    drawnIds: appState.drawnIds,
     onSelectCard: (cardId) => {
       appState.selectedCardId = appState.selectedCardId === cardId ? null : cardId;
+      appState.focusPileId = null;
       render();
     },
     onPlayToPile: (pileId) => {
       const cardId = appState.selectedCardId;
       appState.selectedCardId = null;
+      appState.focusPileId = null;
       if (appState.net) {
         appState.net.dispatchPlay(cardId, pileId);
       } else {
@@ -148,6 +167,14 @@ function ctxForUi() {
         if (!res.ok) flashHint(res.why);
         afterStateChange();
       }
+    },
+    onTogglePileFocus: (pileId) => {
+      appState.focusPileId = appState.focusPileId === pileId ? null : pileId;
+      render();
+    },
+    onSetSort: (sortId) => {
+      appState.handSort = sortId;
+      render();
     },
     onAvatarClick: () => openSignalModal(),
     onInspectPile: (pileId) => openPileModal(pileId),
@@ -199,37 +226,80 @@ function flashHint(text) {
 function render() {
   if (!appState.game) return;
   renderGame(appState.game, ctxForUi(), appState.bubbles);
-  if (appState.game.phase !== 'playing') showResult();
+}
+
+// 말풍선 표시 (플레이어별 타이머 관리 — 연속 신호에도 자연스럽게)
+function showBubble(playerId, text, duration = 3000) {
+  appState.bubbles.set(playerId, text);
+  render();
+  const prev = appState.bubbleTimers.get(playerId);
+  if (prev) clearTimeout(prev);
+  appState.bubbleTimers.set(playerId, setTimeout(() => {
+    appState.bubbles.delete(playerId);
+    appState.bubbleTimers.delete(playerId);
+    render();
+  }, duration));
 }
 
 function sendLocalSignal(signalId, color) {
   const text = signalText(signalId, color);
-  appState.bubbles.set(appState.localPlayerId, text);
-  render();
+  showBubble(appState.localPlayerId, text);
   if (appState.net) appState.net.dispatchSignal(text);
-  setTimeout(() => { appState.bubbles.delete(appState.localPlayerId); render(); }, 3000);
+}
+
+// ---------- 게임 종료 처리 ----------
+// 패배 시 바로 결과 화면으로 넘기지 않고, 필드를 볼 수 있는 배너를 먼저 띄움
+function handleGameOver() {
+  const state = appState.game;
+  if (!state || state.phase === 'playing' || appState.resultShown) return;
+  if (state.phase === 'won') {
+    appState.resultShown = true;
+    showResult();
+    return;
+  }
+  const banner = $('#gameover-banner');
+  $('#gameover-text').textContent = `😿 ${state.loseReason || '게임이 끝났어요'}`;
+  banner.style.display = 'flex';
 }
 
 // ---------- 싱글 플레이 전용 진행 루프 ----------
 function afterStateChange() {
   render();
-  if (appState.game.phase !== 'playing') { showResult(); return; }
+  if (appState.game.phase !== 'playing') { handleGameOver(); return; }
   maybeRunAiTurn();
 }
 
+// AI 턴: 한 장씩, 애매한 상황일수록 오래 고민하는 연출 + 상황 이모지
 function maybeRunAiTurn() {
   if (appState.net) return; // 멀티플레이는 호스트(net.js)가 AI 턴을 진행
   const state = appState.game;
   if (!state || state.phase !== 'playing') return;
   const current = state.players[state.current];
   if (!current.isAI) return;
+
+  const plan = planAiMove(state, current.id);
+  // 고민할수록 오래 끔 (0.6~2.6초) + 약간의 랜덤
+  const delay = 600 + Math.round(plan.hesitation * 1700) + Math.random() * 300;
+  if (plan.hesitation > 0.45) showBubble(current.id, '🤔', Math.min(delay, 2500));
+
+  // 가끔 자기 상황을 이모지로 알림
+  if (Math.random() < 0.3) {
+    const sig = pickAiSignal(state, current.id, plan);
+    if (sig && !isSignalLocked(state)) showBubble(current.id, signalText(sig.id, sig.color));
+  }
+
   setTimeout(() => {
     if (!appState.game || appState.game.phase !== 'playing') return;
-    playAiTurn(appState.game, current.id);
+    if (appState.game.players[appState.game.current].id !== current.id) { maybeRunAiTurn(); return; }
+    if (plan.type === 'play') {
+      playCard(appState.game, current.id, plan.cardId, plan.pileId);
+    } else {
+      endTurn(appState.game, current.id);
+    }
     render();
-    if (appState.game.phase !== 'playing') { showResult(); return; }
+    if (appState.game.phase !== 'playing') { handleGameOver(); return; }
     maybeRunAiTurn();
-  }, 550);
+  }, delay);
 }
 
 function showResult() {
@@ -275,18 +345,16 @@ function renderLobby(players) {
 
 async function enterMultiplayerGame() {
   appState.localPlayerId = appState.net.gamePlayerId;
-  appState.selectedCardId = null;
-  appState.bubbles.clear();
+  resetGameUiState();
   switchScreen('game');
   appState.net.onGameState((state, localId) => {
     appState.game = state;
     appState.localPlayerId = localId || appState.localPlayerId;
     render();
+    if (state.phase !== 'playing') handleGameOver();
   });
   appState.net.onSignal(({ uid, text }) => {
-    appState.bubbles.set(uid, text);
-    render();
-    setTimeout(() => { appState.bubbles.delete(uid); render(); }, 3000);
+    showBubble(uid, text);
   });
   if (appState.net.isHost) {
     appState.game = appState.net.state;
@@ -366,11 +434,27 @@ function bindEvents() {
   $('#btn-end-turn').addEventListener('click', () => {
     if (appState.net) {
       appState.net.dispatchEndTurn();
-    } else {
-      const res = endTurn(appState.game, appState.localPlayerId);
-      if (!res.ok) flashHint(res.why);
-      afterStateChange();
+      return;
     }
+    const me = appState.game.players.find((p) => p.id === appState.localPlayerId);
+    const beforeIds = new Set(me.hand.map((c) => c.id));
+    const res = endTurn(appState.game, appState.localPlayerId);
+    if (!res.ok) flashHint(res.why);
+    else {
+      // 새로 뽑은 카드에 드로우 이펙트
+      appState.drawnIds = new Set(me.hand.filter((c) => !beforeIds.has(c.id)).map((c) => c.id));
+      appState.focusPileId = null;
+      if (appState.drawnIds.size) {
+        setTimeout(() => { appState.drawnIds = null; render(); }, 1600);
+      }
+    }
+    afterStateChange();
+  });
+
+  $('#btn-show-result').addEventListener('click', () => {
+    $('#gameover-banner').style.display = 'none';
+    appState.resultShown = true;
+    showResult();
   });
 
   $('#btn-leave-game').addEventListener('click', () => {
