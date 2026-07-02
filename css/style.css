@@ -72,6 +72,11 @@ h1, h2, h3 { margin: 0 0 8px; }
 .btn.secondary { background: var(--panel); color: var(--ink); box-shadow: 0 3px 0 #ddccb3; border: 2px solid var(--bg-beige); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; }
 .btn.small { padding: 6px 14px; font-size: 0.85rem; box-shadow: 0 2px 0 #d68a3f; }
+.btn.ready { background: var(--success); box-shadow: 0 3px 0 #5ea36f; animation: ready-pulse 1.1s ease-in-out infinite; }
+@keyframes ready-pulse {
+  0%, 100% { box-shadow: 0 3px 0 #5ea36f, 0 0 0 0 rgba(124, 191, 142, 0.55); }
+  50% { box-shadow: 0 3px 0 #5ea36f, 0 0 0 8px rgba(124, 191, 142, 0); }
+}
 
 .menu-actions { display: flex; flex-direction: column; gap: 12px; align-items: center; margin-top: 16px; }
 .menu-actions .btn { width: 260px; }
@@ -127,8 +132,13 @@ h1, h2, h3 { margin: 0 0 8px; }
 .stepper .count { font-weight: 700; min-width: 20px; text-align: center; }
 
 /* --- Game screen --- */
-.game-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.deck-counter { background: var(--bg-beige); border-radius: var(--radius-sm); padding: 8px 14px; font-weight: 700; }
+.game-topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
+.deck-counter {
+  background: var(--bg-beige); border-radius: var(--radius-sm); padding: 8px 14px; font-weight: 700;
+  cursor: pointer; border: none; font-family: inherit; font-size: 0.95rem; color: var(--ink);
+}
+.deck-counter:hover { background: #ecdcc0; }
+.deck-counters { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .players-strip { display: flex; gap: 10px; overflow-x: auto; padding: 6px 2px 14px; }
 .player-chip {
@@ -140,6 +150,13 @@ h1, h2, h3 { margin: 0 0 8px; }
 .player-chip .avatar { font-size: 1.5rem; }
 .player-chip .info { display: flex; flex-direction: column; font-size: 0.8rem; }
 .player-chip .info b { font-size: 0.9rem; }
+.player-chip.clickable { cursor: pointer; }
+.player-chip.clickable:hover { transform: translateY(-2px); }
+.player-chip.clickable::after {
+  content: "💬"; position: absolute; bottom: -6px; right: -6px; font-size: 0.85rem;
+  background: #fff; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow);
+}
 
 .bubble {
   position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
@@ -150,54 +167,149 @@ h1, h2, h3 { margin: 0 0 8px; }
 }
 @keyframes pop { from { transform: translateX(-50%) scale(0.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
 
-.piles-area { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 18px; }
-.pile-group-title { font-size: 0.85rem; color: var(--ink-soft); margin: 4px 0; text-align: center; }
+.piles-area { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.pile-group-title { font-size: 0.78rem; color: var(--ink-soft); margin: 2px 0; text-align: center; }
+#piles-area-wrap.ftf-wrap { display: flex; flex-direction: column; }
+.pile-group.mine { order: 2; }
+.pile-group.theirs { order: 1; }
+.pile-group.mine .pile-group-title { color: var(--accent); font-weight: 700; }
 .pile {
-  border-radius: var(--radius); padding: 12px; text-align: center; cursor: default;
-  background: var(--bg-beige); border: 3px solid transparent; min-height: 128px;
+  position: relative;
+  border-radius: var(--radius); padding: 10px 8px; text-align: center; cursor: default;
+  background: var(--bg-beige); border: 3px solid transparent; min-height: 116px;
   display: flex; flex-direction: column; align-items: center; justify-content: space-between;
 }
 .pile.up { background: linear-gradient(180deg, #fff0f4, var(--up-color) 130%); }
 .pile.down { background: linear-gradient(180deg, #eefaf5, var(--down-color) 130%); }
+.pile.mine { background: linear-gradient(180deg, #fff6e0, #ffe3ad 130%); }
+.pile.theirs { background: linear-gradient(180deg, #eef1ff, #cdd4fb 130%); }
 .pile.selectable { border-color: var(--accent); cursor: pointer; box-shadow: 0 0 0 4px rgba(242, 166, 90, 0.25); }
-.pile .pile-label { font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; }
-.pile .pile-owner { font-size: 0.7rem; color: var(--ink-soft); }
+.pile .pile-arrow { font-size: 1.3rem; line-height: 1; margin-bottom: 2px; }
+.pile .pile-owner { font-size: 0.68rem; color: var(--ink-soft); font-weight: 700; }
 .pile .pile-top {
-  width: 68px; height: 92px; border-radius: 12px; background: #fff; box-shadow: var(--shadow);
-  display: flex; align-items: center; justify-content: center; font-size: 1.6rem; font-weight: 800; margin: 6px auto;
+  width: 64px; height: 86px; border-radius: 12px; background: #fff; box-shadow: var(--shadow);
+  display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: 800; margin: 4px auto;
   position: relative;
 }
-.pile .pile-top.empty { background: rgba(255,255,255,0.5); font-size: 0.9rem; color: var(--ink-soft); font-weight: 500; }
-.pile .pile-badge { position: absolute; top: -8px; right: -8px; font-size: 1.1rem; }
-.pile .pile-count { font-size: 0.72rem; color: var(--ink-soft); }
-.pile .fire-warning { color: var(--danger); font-size: 0.72rem; font-weight: 700; }
+.pile .pile-top.empty { background: rgba(255,255,255,0.5); font-size: 0.85rem; color: var(--ink-soft); font-weight: 500; }
+.pile .pile-count { font-size: 0.68rem; color: var(--ink-soft); }
+.pile .fire-warning { color: var(--danger); font-size: 0.68rem; font-weight: 700; }
+.pile-inspect {
+  position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50%;
+  border: none; background: rgba(255,255,255,0.75); font-size: 0.8rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; z-index: 2;
+}
+.pile-inspect:hover { background: #fff; }
 
 .hand-area { background: var(--panel); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
 .hand-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .hand-cards { display: flex; gap: 8px; flex-wrap: wrap; min-height: 100px; }
 
 .game-card {
-  width: 62px; height: 86px; border-radius: 12px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-  display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 800;
-  cursor: pointer; border: 3px solid transparent; position: relative; user-select: none;
+  width: 62px; height: 86px; border-radius: 16px; background: #fdfaf4; box-shadow: 0 3px 8px rgba(120, 90, 60, 0.2);
+  display: flex; align-items: center; justify-content: center; font-size: 1.4rem; font-weight: 800; color: var(--ink);
+  cursor: pointer; border: 3px solid rgba(255,255,255,0.7); position: relative; user-select: none;
   transition: transform 0.1s ease;
 }
+.game-card::before, .game-card::after {
+  content: ""; position: absolute; top: -6px; width: 14px; height: 14px; border-radius: 50%;
+  background: inherit; border: inherit;
+}
+.game-card::before { left: 7px; }
+.game-card::after { right: 7px; }
+.game-card .value-inner {
+  background: rgba(255,255,255,0.72); border-radius: 50%; width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+}
 .game-card:hover { transform: translateY(-4px); }
-.game-card.selected { border-color: var(--accent); transform: translateY(-8px); }
-.game-card .special-emoji { position: absolute; top: -8px; right: -8px; font-size: 1.1rem; }
+.game-card.playable { box-shadow: 0 0 0 3px var(--success), 0 3px 8px rgba(120, 90, 60, 0.2); }
+.game-card.playable:hover { transform: translateY(-6px); }
+.game-card.not-playable { opacity: 0.45; }
+.game-card.selected { border-color: var(--accent); transform: translateY(-8px); box-shadow: 0 0 0 3px rgba(242,166,90,0.6); }
+.game-card .special-emoji {
+  position: absolute; top: -10px; right: -10px; width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 1rem; z-index: 3;
+  border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+}
+.game-card .trick-badge {
+  position: absolute; bottom: -6px; left: -6px; width: 22px; height: 22px; border-radius: 50%;
+  background: #fff; border: 2px solid var(--success); box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  display: flex; align-items: center; justify-content: center; font-size: 0.8rem; z-index: 3;
+}
 .game-card.type-joker { background: linear-gradient(160deg, #f3d9ff, #d8b8ff); }
-.game-card.type-range { background: linear-gradient(160deg, #cdeaff, #a9d3f5); font-size: 0.95rem; }
+.game-card.type-range { background: linear-gradient(160deg, #cdeaff, #a9d3f5); font-size: 0.9rem; }
+.game-card .paw-mark { position: absolute; bottom: 3px; right: 5px; font-size: 0.6rem; opacity: 0.35; }
+
+/* 일반 모드: 10단위 파스텔 테마 */
+.game-card.decade-0 { background: linear-gradient(160deg, #fff0f4, #ffd3e0); }
+.game-card.decade-1 { background: linear-gradient(160deg, #fff2e2, #ffdcae); }
+.game-card.decade-2 { background: linear-gradient(160deg, #fffbdd, #fbedA0); }
+.game-card.decade-3 { background: linear-gradient(160deg, #f3fadb, #e2f3a8); }
+.game-card.decade-4 { background: linear-gradient(160deg, #e4f8ec, #b9ecce); }
+.game-card.decade-5 { background: linear-gradient(160deg, #ddf6f0, #a9e8dc); }
+.game-card.decade-6 { background: linear-gradient(160deg, #dff2fb, #a9d8f2); }
+.game-card.decade-7 { background: linear-gradient(160deg, #e6e6fc, #c3c2f5); }
+.game-card.decade-8 { background: linear-gradient(160deg, #f3e3fc, #ddb6f2); }
+.game-card.decade-9 { background: linear-gradient(160deg, #fde2ee, #f3aecf); }
+
+/* 퀵앤이지: 색상별 통일 디자인 */
+.game-card.jelly-red { background: linear-gradient(160deg, #ffe1e6, #f2a3b3); }
+.game-card.jelly-yellow { background: linear-gradient(160deg, #fff6d8, #f2d580); }
+.game-card.jelly-blue { background: linear-gradient(160deg, #dcedfb, #96c1e8); }
+.game-card.jelly-green { background: linear-gradient(160deg, #e1f5e4, #a3d8ac); }
+.game-card.jelly-purple { background: linear-gradient(160deg, #ede1fb, #c3a3e8); }
+
+/* 페이스투페이스: 소유자 기반 디자인 */
+.game-card.owner-mine { background: linear-gradient(160deg, #fff6e0, #ffd98a); }
+.game-card.owner-theirs { background: linear-gradient(160deg, #e6ecff, #adbcf5); }
 
 .turn-controls { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 8px; flex-wrap: wrap; }
 .turn-hint { font-size: 0.85rem; color: var(--ink-soft); }
 
-.signal-panel { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
-.signal-panel button {
-  font-family: inherit; border: 2px solid var(--bg-beige); background: #fff; border-radius: 999px;
-  padding: 6px 12px; font-size: 0.78rem; cursor: pointer;
+.pile-top.game-card { width: 64px; height: 86px; cursor: default; }
+.pile-top.game-card:hover { transform: none; }
+
+/* --- 모달 (신호 선택 / 더미·덱 조회) --- */
+.modal-backdrop {
+  display: none; position: fixed; inset: 0; background: rgba(90, 70, 50, 0.35);
+  align-items: flex-end; justify-content: center; z-index: 50; padding: 0;
 }
-.signal-panel button:disabled { opacity: 0.4; cursor: not-allowed; }
-.signal-lock-note { font-size: 0.78rem; color: var(--danger); font-weight: 700; }
+.modal-backdrop.active { display: flex; }
+.modal-box {
+  background: var(--panel); border-radius: 20px 20px 0 0; width: 100%; max-width: 480px;
+  max-height: 78vh; display: flex; flex-direction: column; box-shadow: 0 -6px 20px rgba(90,70,50,0.25);
+  animation: slideup 0.18s ease;
+}
+@keyframes slideup { from { transform: translateY(24px); opacity: 0.4; } to { transform: translateY(0); opacity: 1; } }
+@media (min-width: 640px) {
+  .modal-backdrop { align-items: center; }
+  .modal-box { border-radius: var(--radius); }
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 8px; }
+.modal-header h3 { margin: 0; font-size: 1.05rem; }
+.modal-close { border: none; background: var(--bg-beige); border-radius: 50%; width: 30px; height: 30px; cursor: pointer; font-size: 0.9rem; }
+.modal-body { padding: 6px 16px 18px; overflow-y: auto; }
+
+.signal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.signal-grid button {
+  font-family: inherit; border: 2px solid var(--bg-beige); background: #fff; border-radius: 14px;
+  padding: 10px 8px; font-size: 0.85rem; cursor: pointer; text-align: center;
+}
+.signal-grid button:hover { background: var(--bg-beige); }
+.signal-grid button.emoji-only { font-size: 1.5rem; padding: 10px 4px; }
+.signal-lock-note { font-size: 0.85rem; color: var(--danger); font-weight: 700; text-align: center; padding: 20px 0; }
+
+.deck-list-group { margin-bottom: 12px; }
+.deck-list-group .deck-list-title { font-size: 0.78rem; color: var(--ink-soft); margin-bottom: 4px; font-weight: 700; }
+.deck-chip-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.deck-chip {
+  min-width: 26px; padding: 3px 6px; border-radius: 8px; background: var(--bg-beige); font-size: 0.78rem;
+  text-align: center; font-weight: 700;
+}
+.pile-history-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pile-history-row .game-card { width: 46px; height: 62px; font-size: 1rem; cursor: default; }
+.pile-history-row .game-card:hover { transform: none; }
+.pile-history-empty { color: var(--ink-soft); font-size: 0.85rem; padding: 12px 0; text-align: center; }
 
 .log-panel {
   background: var(--bg-cream); border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 14px;
@@ -214,7 +326,17 @@ h1, h2, h3 { margin: 0 0 8px; }
 footer.note { color: var(--ink-soft); font-size: 0.75rem; text-align: center; margin-top: 20px; }
 
 @media (max-width: 520px) {
+  body { padding: 10px; }
   .menu-actions .btn { width: 100%; }
-  .game-card { width: 52px; height: 74px; font-size: 1.15rem; }
-  .pile .pile-top { width: 56px; height: 78px; font-size: 1.3rem; }
+  .card-panel { padding: 14px; }
+  .game-card { width: 50px; height: 70px; font-size: 1.1rem; }
+  .game-card .value-inner { width: 32px; height: 32px; }
+  .pile { padding: 8px 6px; min-height: 100px; }
+  .pile .pile-top, .pile-top.game-card { width: 52px; height: 72px; font-size: 1.15rem; }
+  .piles-area { gap: 8px; }
+  .player-chip { min-width: 92px; padding: 6px 8px; }
+  .player-chip .avatar { font-size: 1.2rem; }
+  .player-chip .info { font-size: 0.72rem; }
+  .player-chip .info b { font-size: 0.8rem; }
+  .signal-grid { grid-template-columns: repeat(2, 1fr); }
 }

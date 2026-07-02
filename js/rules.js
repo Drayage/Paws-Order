@@ -33,6 +33,19 @@ export function playerDeck(state, playerId) {
   return state.mode === MODES.FTF ? state.decks[playerId] : state.decks.shared;
 }
 
+// 로그/UI에 쓰는 짧은 더미 이름 (예: "⬆️A", "토토의 ⬇️")
+export function pileShortLabel(state, pile) {
+  const arrow = pile.dir === 'up' ? '⬆️' : '⬇️';
+  if (pile.owner) {
+    const owner = playerById(state, pile.owner);
+    return `${owner ? owner.name : '?'}의 ${arrow}`;
+  }
+  const sameDir = state.piles.filter((p) => p.dir === pile.dir);
+  if (sameDir.length <= 1) return arrow;
+  const idx = sameDir.indexOf(pile);
+  return `${arrow}${String.fromCharCode(65 + idx)}`;
+}
+
 // 카드 1장을 특정 더미에 놓을 수 있는가 → { ok, kind } / { ok:false, why }
 export function canPlace(state, playerId, card, pile) {
   const no = (why) => ({ ok: false, why });

@@ -2,8 +2,8 @@
 import { MODES, ANIMAL_AVATARS, MAX_PLAYERS } from './constants.js';
 import { createGame, playCard, endTurn } from './game.js';
 import { playAiTurn } from './ai.js';
-import { renderGame } from './ui.js';
-import { renderSignalPanel, signalText } from './signals.js';
+import { renderGame, openModal, closeModal, buildPileHistoryBody, buildDeckModalBody } from './ui.js';
+import { buildSignalButtons, isSignalLocked, signalText } from './signals.js';
 import { isFirebaseConfigured, hostRoom, joinRoom, leaveRoom } from './net.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -149,7 +149,44 @@ function ctxForUi() {
         afterStateChange();
       }
     },
+    onAvatarClick: () => openSignalModal(),
+    onInspectPile: (pileId) => openPileModal(pileId),
+    onInspectDeck: (deckKey) => openDeckModal(deckKey),
   };
+}
+
+function openSignalModal() {
+  const state = appState.game;
+  const wrap = document.createElement('div');
+  if (isSignalLocked(state)) {
+    wrap.innerHTML = '<div class="signal-lock-note">🤫 도서관 타임! 지금은 신호를 보낼 수 없어요.</div>';
+    openModal('신호 보내기', wrap);
+    return;
+  }
+  const grid = document.createElement('div');
+  grid.className = 'signal-grid';
+  buildSignalButtons(state.mode).forEach((b) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    if (b.emojiOnly) btn.classList.add('emoji-only');
+    btn.textContent = b.label;
+    if (b.hex) btn.style.borderColor = b.hex;
+    btn.addEventListener('click', () => { sendLocalSignal(b.id, b.color); closeModal(); });
+    grid.appendChild(btn);
+  });
+  wrap.appendChild(grid);
+  openModal('신호 보내기 📣', wrap);
+}
+
+function openPileModal(pileId) {
+  const pile = appState.game.piles.find((p) => p.id === pileId);
+  const body = buildPileHistoryBody(appState.game, pileId, appState.localPlayerId);
+  openModal(`${pile.dir === 'up' ? '⬆️' : '⬇️'} 더미에 놓인 카드`, body);
+}
+
+function openDeckModal(deckKey) {
+  const body = buildDeckModalBody(appState.game, deckKey, appState.localPlayerId);
+  openModal('🗂️ 아직 안 나온 카드', body);
 }
 
 function flashHint(text) {
@@ -162,7 +199,6 @@ function flashHint(text) {
 function render() {
   if (!appState.game) return;
   renderGame(appState.game, ctxForUi(), appState.bubbles);
-  renderSignalPanel(appState.game, appState.localPlayerId, sendLocalSignal);
   if (appState.game.phase !== 'playing') showResult();
 }
 
@@ -354,7 +390,18 @@ function bindEvents() {
     appState.game = null;
     switchScreen('menu');
   });
+
+  $('#modal-close').addEventListener('click', closeModal);
+  $('#modal-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'modal-backdrop') closeModal();
+  });
 }
 
 bindEvents();
 renderSetupScreen();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(() => { /* PWA는 선택 기능이라 실패해도 게임 진행에는 영향 없음 */ });
+  });
+}

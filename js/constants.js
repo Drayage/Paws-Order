@@ -25,14 +25,14 @@ export const PERSISTENT_SPECIALS = ['noTalk', 'noBackwards', 'onePile', 'drawOne
 // 온 파이어 — 화난 식빵 🍞: 놓인 차례 또는 다음 차례까지 덮어야 함
 export const FIRE_NUMBERS = [22, 33, 44, 55, 66, 77];
 
-// 퀵 앤 이지 젤리 색상 (각 색상 1~10)
+// 퀵 앤 이지 젤리 색상 (각 색상 1~10) — 명료함을 위해 색 이름을 그대로 사용
 export const JELLY_COLORS = ['red', 'yellow', 'blue', 'green', 'purple'];
 export const COLOR_INFO = {
-  red: { label: '딸기', emoji: '🍓', hex: '#f28ba8' },
-  yellow: { label: '레몬', emoji: '🍋', hex: '#f2ce6b' },
-  blue: { label: '소다', emoji: '🫐', hex: '#7fb5e6' },
-  green: { label: '메론', emoji: '🍈', hex: '#8fce9a' },
-  purple: { label: '포도', emoji: '🍇', hex: '#b795dc' },
+  red: { label: '빨강', hex: '#f2748c' },
+  yellow: { label: '노랑', hex: '#f2c23e' },
+  blue: { label: '파랑', hex: '#5b9bd9' },
+  green: { label: '초록', hex: '#6bbd7e' },
+  purple: { label: '보라', hex: '#a883d9' },
 };
 
 // 특수 카드 표시 정보 (동물마을 리브랜딩)
@@ -74,16 +74,24 @@ export const ANIMAL_AVATARS = [
   { emoji: '🐧', name: '펭순' },
 ];
 
-// 이모지 신호등 템플릿 (자유 채팅 없음)
+// 이모지 신호등 템플릿 (자유 채팅 없음) — 짧고 명료하게, 순수 이모지 반응도 포함
 export const SIGNALS = [
-  { id: 'haveUp', text: '나 등산로🐰에 낼 카드 있어!', modes: ['normal', 'quick'] },
-  { id: 'haveDown', text: '나 땅굴🐹에 낼 카드 있어!', modes: ['normal', 'quick'] },
-  { id: 'dontTouchUp', text: '등산로🐰는 만지지 마! ❌', modes: ['normal', 'quick'] },
-  { id: 'dontTouchDown', text: '땅굴🐹은 만지지 마! ❌', modes: ['normal', 'quick'] },
+  { id: 'haveUp', text: '⬆️ 낼 카드 있어!', modes: ['normal', 'quick'] },
+  { id: 'haveDown', text: '⬇️ 낼 카드 있어!', modes: ['normal', 'quick'] },
+  { id: 'dontTouchUp', text: '⬆️ 만지지 마! ❌', modes: ['normal', 'quick'] },
+  { id: 'dontTouchDown', text: '⬇️ 만지지 마! ❌', modes: ['normal', 'quick'] },
+  { id: 'haveHigh', text: '나 높은 카드 많아! 🔼', modes: ['normal', 'quick', 'ftf'] },
+  { id: 'haveLow', text: '나 낮은 카드 많아! 🔽', modes: ['normal', 'quick', 'ftf'] },
   { id: 'wait', text: '조금만 기다려줘! 🙏', modes: ['normal', 'quick', 'ftf'] },
-  { id: 'nice', text: '나이스! 최고야 💖', modes: ['normal', 'quick', 'ftf'] },
-  { id: 'colorHigh', text: '나 {color}젤리 높은 거 있어!', modes: ['quick'], needsColor: true },
-  { id: 'colorLow', text: '나 {color}젤리 낮은 거 있어!', modes: ['quick'], needsColor: true },
-  { id: 'gift', text: '친구야, 좋은 선물 줄게! 🎁', modes: ['ftf'] },
+  { id: 'colorHigh', text: '{color} 높은 거 있어!', modes: ['quick'], needsColor: true },
+  { id: 'colorLow', text: '{color} 낮은 거 있어!', modes: ['quick'], needsColor: true },
+  { id: 'gift', text: '선물 줄게! 🎁', modes: ['ftf'] },
   { id: 'noGift', text: '선물은 사양할게~ 😅', modes: ['ftf'] },
+  // 텍스트 없는 순수 이모지 반응
+  { id: 'em_thumb', text: '👍', modes: ['normal', 'quick', 'ftf'], emojiOnly: true },
+  { id: 'em_heart', text: '💖', modes: ['normal', 'quick', 'ftf'], emojiOnly: true },
+  { id: 'em_sweat', text: '😅', modes: ['normal', 'quick', 'ftf'], emojiOnly: true },
+  { id: 'em_fire', text: '🔥', modes: ['normal', 'quick', 'ftf'], emojiOnly: true },
+  { id: 'em_cry', text: '😿', modes: ['normal', 'quick', 'ftf'], emojiOnly: true },
+  { id: 'em_clap', text: '👏', modes: ['normal', 'quick', 'ftf'], emojiOnly: true },
 ];

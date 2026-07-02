@@ -1,0 +1,21 @@
+{
+  "name": "말랑숫자 동물마을",
+  "short_name": "동물마을",
+  "description": "동물 친구들과 함께 즐기는 협동/경쟁 숫자 카드 게임",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#fdf6ec",
+  "theme_color": "#f2a65a",
+  "lang": "ko",
+  "icons": [
+    { "src": "icons/icon-16.png", "sizes": "16x16", "type": "image/png" },
+    { "src": "icons/icon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "icons/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

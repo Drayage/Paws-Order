@@ -3,8 +3,16 @@ import { MODES, normalHandSize, QUICK_HAND_SIZE, FTF_HAND_SIZE, SPECIAL_INFO } f
 import { buildSetup, makeRng } from './deck.js';
 import {
   canPlace, canEndTurn, legalMoves, minPlaysRequired, isDeadlock,
-  isCoopWin, isFtfWinner, playerById, playerDeck, activeEffects, topCard,
+  isCoopWin, isFtfWinner, playerById, playerDeck, activeEffects, topCard, pileShortLabel,
 } from './rules.js';
+
+function cardDisplay(card) {
+  if (card.type === 'joker') return '🐼';
+  if (card.type === 'range') return `${card.lo}-${card.hi}`;
+  return String(card.value);
+}
+
+const KIND_TAG = { trick: ' 🔄', color: ' 🎨', donate: ' 🎁' };
 
 function freshTurn() {
   return { plays: [], pilesUsed: [], donated: false, exactThree: false, mustCover: [] };
@@ -119,10 +127,8 @@ export function playCard(state, playerId, cardId, pileId) {
   pile.cards.push(card);
   state.turn.plays.push({ cardId, pileId, playerId, kind: res.kind });
   if (!state.turn.pilesUsed.includes(pileId)) state.turn.pilesUsed.push(pileId);
-  if (res.kind === 'donate') {
-    state.turn.donated = true;
-    addLog(state, `🎁 ${player.name}이(가) ${state.piles.find((p) => p.id === pileId).label}에 선물을 줬어요!`);
-  }
+  if (res.kind === 'donate') state.turn.donated = true;
+  addLog(state, `${player.name}: ${cardDisplay(card)} → ${pileShortLabel(state, pile)}${KIND_TAG[res.kind] || ''}`);
 
   // 이 더미의 덮기 요구(사자/조커) 해소 — 조커는 숫자 카드로만 해소
   state.turn.mustCover = state.turn.mustCover.filter((mc) =>
@@ -208,4 +214,4 @@ export function endTurn(state, playerId, { force = false } = {}) {
 }
 
 // UI/AI 편의용 재노출
-export { canPlace, canEndTurn, legalMoves, minPlaysRequired, activeEffects, topCard };
+export { canPlace, canEndTurn, legalMoves, minPlaysRequired, activeEffects, topCard, pileShortLabel };

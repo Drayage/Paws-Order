@@ -2,8 +2,18 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>말랑숫자 동물마을</title>
+<meta name="description" content="동물 친구들과 함께 즐기는 협동/경쟁 숫자 카드 게임" />
+<meta name="theme-color" content="#f2a65a" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
+<link rel="apple-touch-icon" href="icons/icon-180.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="동물마을" />
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -104,7 +114,7 @@
 
 <section id="screen-game" class="screen">
   <div class="game-topbar">
-    <div class="deck-counter" id="deck-counter">🗂️ 남은 카드: 0</div>
+    <div class="deck-counters" id="deck-counters"></div>
     <button class="btn small secondary" id="btn-leave-game">나가기</button>
   </div>
 
@@ -122,7 +132,6 @@
       <span class="turn-hint" id="turn-requirement"></span>
       <button class="btn" id="btn-end-turn">차례 마치기 ✅</button>
     </div>
-    <div class="signal-panel" id="signal-panel"></div>
   </div>
 
   <div class="log-panel" id="log-panel"></div>
@@ -141,6 +150,16 @@
 </section>
 
 <footer class="note">브라우저에서 바로 즐기는 협동 숫자 카드 게임 🐾</footer>
+
+<div class="modal-backdrop" id="modal-backdrop">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modal-title"></h3>
+      <button type="button" class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
 
 <script type="module" src="js/main.js"></script>
 </body>
