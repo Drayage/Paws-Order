@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>말랑숫자 동물마을</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<section id="screen-menu" class="screen active">
+  <h1 class="app-title">🐰 말랑숫자 동물마을 🐹</h1>
+  <p class="app-sub">동물 친구들과 함께 숫자를 차곡차곡 쌓아봐요!</p>
+  <div class="card-panel menu-actions">
+    <button class="btn" id="btn-goto-single">🎮 혼자 놀기 (+AI 친구들)</button>
+    <button class="btn secondary" id="btn-goto-host">🏠 방 만들기 (친구 초대)</button>
+    <button class="btn secondary" id="btn-goto-join">🚪 방 참가하기</button>
+  </div>
+  <div class="card-panel" id="rules-brief">
+    <h3>📖 아주 짧은 규칙</h3>
+    <p>토끼의 등산로🐰는 점점 큰 숫자로, 두더지의 땅굴🐹은 점점 작은 숫자로! 손패를 모두 내려놓으면 다 함께 승리해요.</p>
+  </div>
+</section>
+
+<section id="screen-setup" class="screen">
+  <h2 id="setup-title">🎮 게임 설정</h2>
+  <div class="card-panel">
+    <h3>모드 선택</h3>
+    <div class="mode-grid" id="mode-grid"></div>
+  </div>
+
+  <div class="card-panel" id="panel-players">
+    <h3>내 이름</h3>
+    <div class="field-row">
+      <label for="input-name">닉네임</label>
+      <input type="text" id="input-name" maxlength="8" placeholder="예: 토실이" />
+    </div>
+    <div class="field-row" id="row-ai-count">
+      <label>AI 동물 친구</label>
+      <div class="stepper">
+        <button type="button" id="ai-minus">−</button>
+        <span class="count" id="ai-count">2</span>
+        <button type="button" id="ai-plus">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-panel" id="panel-extensions">
+    <h3>확장팩 &amp; 특수 카드</h3>
+    <div class="toggle-row" data-opt="extreme">
+      <div class="toggle-label"><span>☑️ 익스트림</span><span class="small">정지/잠든사자/3!/지속 효과 명령 카드 추가</span></div>
+      <label class="switch"><input type="checkbox" /><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row" data-opt="fire">
+      <div class="toggle-label"><span>🍞 화난 식빵</span><span class="small">22,33,44,55,66,77 — 제때 덮지 않으면 큰일나요</span></div>
+      <label class="switch"><input type="checkbox" /><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row" data-opt="joker">
+      <div class="toggle-label"><span>🐼 조커 카드</span><span class="small">어디든 놓지만 바로 숫자로 덮어야 해요</span></div>
+      <label class="switch"><input type="checkbox" /><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row" data-opt="range">
+      <div class="toggle-label"><span>🏕️ 레인지 카드</span><span class="small">범위 안 숫자끼리만 덮을 수 있어요</span></div>
+      <label class="switch"><input type="checkbox" /><span class="slider"></span></label>
+    </div>
+    <p class="turn-hint" id="ext-disabled-note" style="display:none;">퀵앤이지 / 페이스투페이스 모드에서는 확장팩을 사용할 수 없어요.</p>
+  </div>
+
+  <div class="card-panel" id="panel-room" style="display:none;">
+    <h3 id="room-panel-title">방 코드</h3>
+    <div class="field-row" id="row-room-code-display" style="display:none;">
+      <label>내 방 코드</label>
+      <b id="room-code-display" style="font-size:1.4rem; letter-spacing:2px;">------</b>
+    </div>
+    <div class="field-row" id="row-room-code-input" style="display:none;">
+      <label for="input-room-code">방 코드</label>
+      <input type="text" id="input-room-code" maxlength="6" placeholder="6자리 코드" style="text-transform:uppercase;" />
+    </div>
+    <p class="turn-hint" id="firebase-note"></p>
+  </div>
+
+  <div class="menu-actions">
+    <button class="btn" id="btn-start-game">시작하기 🚀</button>
+    <button class="btn secondary" id="btn-back-menu">← 뒤로</button>
+  </div>
+</section>
+
+<section id="screen-lobby" class="screen">
+  <h2>🏠 방 대기실</h2>
+  <div class="card-panel">
+    <div class="field-row" id="lobby-code-row">
+      <label>방 코드</label>
+      <b id="lobby-code" style="font-size:1.6rem; letter-spacing:3px;">------</b>
+    </div>
+    <h3>참가한 친구들</h3>
+    <ul id="lobby-players" style="line-height:1.9;"></ul>
+    <p class="turn-hint" id="lobby-hint"></p>
+  </div>
+  <div class="menu-actions">
+    <button class="btn" id="btn-lobby-start" style="display:none;">게임 시작 🚀</button>
+    <button class="btn secondary" id="btn-lobby-leave">방 나가기</button>
+  </div>
+</section>
+
+<section id="screen-game" class="screen">
+  <div class="game-topbar">
+    <div class="deck-counter" id="deck-counter">🗂️ 남은 카드: 0</div>
+    <button class="btn small secondary" id="btn-leave-game">나가기</button>
+  </div>
+
+  <div class="players-strip" id="players-strip"></div>
+
+  <div id="piles-area-wrap"></div>
+
+  <div class="hand-area">
+    <div class="hand-header">
+      <h3 style="margin:0;">🖐️ 내 손패</h3>
+      <span class="turn-hint" id="turn-indicator"></span>
+    </div>
+    <div class="hand-cards" id="hand-cards"></div>
+    <div class="turn-controls">
+      <span class="turn-hint" id="turn-requirement"></span>
+      <button class="btn" id="btn-end-turn">차례 마치기 ✅</button>
+    </div>
+    <div class="signal-panel" id="signal-panel"></div>
+  </div>
+
+  <div class="log-panel" id="log-panel"></div>
+</section>
+
+<section id="screen-result" class="screen">
+  <div class="card-panel">
+    <div class="result-emoji" id="result-emoji">🎉</div>
+    <div class="result-title" id="result-title"></div>
+    <div class="result-desc" id="result-desc"></div>
+    <div class="menu-actions">
+      <button class="btn" id="btn-play-again">다시 하기</button>
+      <button class="btn secondary" id="btn-result-menu">메인 메뉴로</button>
+    </div>
+  </div>
+</section>
+
+<footer class="note">브라우저에서 바로 즐기는 협동 숫자 카드 게임 🐾</footer>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
