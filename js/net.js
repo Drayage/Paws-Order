@@ -226,6 +226,39 @@ export async function joinRoom({ code, name }) {
   return controller;
 }
 
+// 새로고침 후 재접속: 저장해둔 code/uid로 같은 방에 다시 붙는다.
+// 실제 게임 상태는 Firebase에 있으므로(호스트도 rooms/{code}/state에 즉시 반영해둠),
+// 호스트가 새로고침했어도 마지막으로 기록된 state를 그대로 읽어와 이어서 진행할 수 있다.
+export async function resumeRoom({ code, uid, isHost, name }) {
+  const fb = await ensureFirebase();
+  const metaSnap = await fb.get(fb.ref(fb.db, `rooms/${code}/meta`));
+  const meta = metaSnap.val();
+  if (!meta) throw new Error('방을 찾을 수 없어요. (만료되었거나 삭제된 방이에요)');
+
+  const controller = new RoomController({
+    fb, code, uid, isHost,
+    mode: meta.mode, options: meta.options, aiCount: meta.aiCount, name,
+  });
+  controller.status = meta.status;
+
+  // 자리를 계속 지키고 있었다는 걸 표시 (없어졌으면 다시 등록)
+  await fb.set(fb.ref(fb.db, `rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
+
+  if (isHost) {
+    controller.gamePlayerId = uid;
+    if (meta.status === 'playing') {
+      const stateSnap = await fb.get(controller.stateRef);
+      controller.state = stateSnap.val();
+      if (!controller.state) throw new Error('게임 상태를 복원하지 못했어요.');
+      controller._listenActions();
+      controller._runAiChain();
+    }
+  } else if (meta.status === 'playing' && meta.playerMap && meta.playerMap[uid]) {
+    controller.gamePlayerId = meta.playerMap[uid];
+  }
+  return controller;
+}
+
 export function leaveRoom(controller) {
   if (controller) controller.leave();
 }

@@ -2,9 +2,10 @@
 import { MODES, ANIMAL_AVATARS, MAX_PLAYERS } from './constants.js';
 import { createGame, playCard, endTurn } from './game.js';
 import { planAiMove, pickAiSignal } from './ai.js';
-import { renderGame, openModal, closeModal, buildPileHistoryBody, buildDeckModalBody } from './ui.js';
+import { renderGame, openModal, closeModal, buildPileHistoryBody, buildDeckModalBody, describeCard } from './ui.js';
 import { buildSignalButtons, isSignalLocked, signalText } from './signals.js';
-import { isFirebaseConfigured, hostRoom, joinRoom, leaveRoom } from './net.js';
+import { isFirebaseConfigured, hostRoom, joinRoom, resumeRoom, leaveRoom } from './net.js';
+import { saveSession, loadSession, clearSession } from './storage.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -184,7 +185,20 @@ function ctxForUi() {
     onAvatarClick: () => openSignalModal(),
     onInspectPile: (pileId) => openPileModal(pileId),
     onInspectDeck: (deckKey) => openDeckModal(deckKey),
+    onShowCardInfo: (card) => openCardInfoModal(card),
   };
+}
+
+function openCardInfoModal(card) {
+  const info = describeCard(card);
+  if (!info) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div style="font-size:3.2rem; text-align:center; margin-bottom:6px;">${info.emoji}</div>
+    <p style="text-align:center; line-height:1.5;"></p>
+  `;
+  wrap.querySelector('p').textContent = info.desc;
+  openModal(info.label, wrap);
 }
 
 function openSignalModal() {
@@ -212,7 +226,7 @@ function openSignalModal() {
 
 function openPileModal(pileId) {
   const pile = appState.game.piles.find((p) => p.id === pileId);
-  const body = buildPileHistoryBody(appState.game, pileId, appState.localPlayerId);
+  const body = buildPileHistoryBody(appState.game, pileId, appState.localPlayerId, openCardInfoModal);
   openModal(`${pile.dir === 'up' ? '⬆️' : '⬇️'} 더미에 놓인 카드`, body);
 }
 
@@ -228,11 +242,27 @@ function flashHint(text) {
   setTimeout(() => { hint.style.color = ''; render(); }, 1400);
 }
 
+// 새로고침해도 이어할 수 있도록 싱글 플레이 상태를 저장 (멀티는 code/uid만 저장하면 충분)
+function persistSingleSession() {
+  if (appState.net || !appState.game) return;
+  saveSession({
+    type: 'single',
+    mode: appState.mode,
+    options: appState.options,
+    aiCount: appState.aiCount,
+    playerName: appState.playerName,
+    localPlayerId: appState.localPlayerId,
+    resultShown: appState.resultShown,
+    game: appState.game,
+  });
+}
+
 function render() {
   if (!appState.game) return;
   renderGame(appState.game, ctxForUi(), appState.bubbles);
   // 이번 렌더에서 '놓이는' 이펙트를 보여줬다면, 다음 렌더부터는 반복 재생하지 않도록 기록
   if (appState.game.lastPlay) appState.animatedPlayId = appState.game.lastPlay.cardId;
+  persistSingleSession();
 }
 
 // 말풍선 표시 (플레이어별 타이머 관리 — 연속 신호에도 자연스럽게)
@@ -369,6 +399,29 @@ async function enterMultiplayerGame() {
   }
 }
 
+// 멀티 플레이는 실제 게임 상태가 Firebase에 있으므로, 재접속에 필요한 최소 정보(방 코드/uid)만 저장
+function persistMultiSession() {
+  if (!appState.net) return;
+  saveSession({
+    type: 'multi',
+    code: appState.net.code,
+    uid: appState.net.uid,
+    isHost: appState.net.isHost,
+    name: appState.net.name,
+  });
+}
+
+function attachLobbyWatchers(controller) {
+  controller.onPlayers((players) => renderLobby(players));
+  const metaUnsub = controller.fb.onValue(controller.metaRef, (snap) => {
+    const meta = snap.val();
+    if (meta && meta.status === 'playing' && appState.screen === 'lobby') {
+      enterMultiplayerGame();
+    }
+  });
+  controller._unsubs.push(metaUnsub);
+}
+
 async function startMultiplayerFlow() {
   const name = appState.playerName.trim() || '손님';
   if (appState.roomMode === 'host') {
@@ -378,15 +431,62 @@ async function startMultiplayerFlow() {
     if (!code) { alert('방 코드를 입력해주세요.'); return; }
     appState.net = await joinRoom({ code, name });
   }
+  persistMultiSession();
   switchScreen('lobby');
-  appState.net.onPlayers((players) => renderLobby(players));
-  const metaUnsub = appState.net.fb.onValue(appState.net.metaRef, (snap) => {
-    const meta = snap.val();
-    if (meta && meta.status === 'playing' && appState.screen === 'lobby') {
-      enterMultiplayerGame();
+  attachLobbyWatchers(appState.net);
+}
+
+// 새로고침 직후 부팅 시 호출 — 저장된 세션이 있으면 메뉴를 건너뛰고 바로 이어서 진행
+async function tryResumeSession() {
+  const saved = loadSession();
+  if (!saved) { renderSetupScreen(); return; }
+
+  if (saved.type === 'single' && saved.game && saved.game.phase) {
+    appState.mode = saved.mode;
+    appState.options = saved.options;
+    appState.aiCount = saved.aiCount;
+    appState.playerName = saved.playerName || '';
+    appState.roomMode = 'single';
+    appState.localPlayerId = saved.localPlayerId;
+    appState.game = saved.game;
+    resetGameUiState();
+    switchScreen('game');
+    render();
+    if (saved.resultShown && saved.game.phase !== 'playing') {
+      appState.resultShown = true;
+      showResult();
+    } else if (saved.game.phase !== 'playing') {
+      handleGameOver();
+    } else {
+      maybeRunAiTurn();
     }
-  });
-  appState.net._unsubs.push(metaUnsub);
+    return;
+  }
+
+  if (saved.type === 'multi') {
+    if (!isFirebaseConfigured()) { clearSession(); renderSetupScreen(); return; }
+    try {
+      const controller = await resumeRoom(saved);
+      appState.net = controller;
+      appState.mode = controller.mode;
+      appState.options = controller.options;
+      appState.aiCount = controller.aiCount;
+      appState.playerName = saved.name || '';
+      appState.roomMode = saved.isHost ? 'host' : 'join';
+      if (controller.status === 'playing') {
+        await enterMultiplayerGame();
+      } else {
+        switchScreen('lobby');
+        attachLobbyWatchers(controller);
+      }
+      return;
+    } catch (err) {
+      clearSession();
+    }
+  }
+
+  clearSession();
+  renderSetupScreen();
 }
 
 // ---------- 이벤트 바인딩 ----------
@@ -435,6 +535,7 @@ function bindEvents() {
   $('#btn-lobby-leave').addEventListener('click', () => {
     if (appState.net) leaveRoom(appState.net);
     appState.net = null;
+    clearSession();
     switchScreen('menu');
   });
 
@@ -461,6 +562,7 @@ function bindEvents() {
   $('#btn-show-result').addEventListener('click', () => {
     $('#gameover-banner').style.display = 'none';
     appState.resultShown = true;
+    persistSingleSession();
     showResult();
   });
 
@@ -468,17 +570,20 @@ function bindEvents() {
     if (appState.net) leaveRoom(appState.net);
     appState.net = null;
     appState.game = null;
+    clearSession();
     switchScreen('menu');
   });
 
   $('#btn-play-again').addEventListener('click', () => {
     appState.net = null;
+    clearSession();
     switchScreen('setup');
     renderSetupScreen();
   });
   $('#btn-result-menu').addEventListener('click', () => {
     appState.net = null;
     appState.game = null;
+    clearSession();
     switchScreen('menu');
   });
 
@@ -489,7 +594,7 @@ function bindEvents() {
 }
 
 bindEvents();
-renderSetupScreen();
+tryResumeSession();
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

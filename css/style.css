@@ -252,15 +252,33 @@ h1, h2, h3 { margin: 0 0 8px; }
   position: absolute; top: -10px; right: -10px; width: 26px; height: 26px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; font-size: 1rem; z-index: 3;
   border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+  transition: transform 0.12s ease;
 }
+.game-card .special-emoji.tappable { cursor: pointer; }
+.game-card .special-emoji.tappable:hover { transform: scale(1.18); }
+.game-card .special-emoji.tappable:active { transform: scale(0.95); }
 .game-card .trick-badge {
   position: absolute; bottom: -6px; left: -6px; width: 22px; height: 22px; border-radius: 50%;
   background: #fff; border: 2px solid var(--success); box-shadow: 0 2px 4px rgba(0,0,0,0.2);
   display: flex; align-items: center; justify-content: center; font-size: 0.8rem; z-index: 3;
 }
 .game-card.type-joker { background: linear-gradient(160deg, #f3d9ff, #d8b8ff); }
-.game-card.type-range { background: linear-gradient(160deg, #cdeaff, #a9d3f5); font-size: 0.9rem; }
+.game-card.type-range { background: linear-gradient(160deg, #d3f3ee, #7fd6c7); font-size: 0.9rem; }
 .game-card .paw-mark { position: absolute; bottom: 3px; right: 5px; font-size: 0.6rem; opacity: 0.35; }
+
+/* 특수카드: 형태(일회용/지속형/화난 식빵)별로 색과 테두리를 다르게 해서 한눈에 구분되게 함 */
+.game-card.special-onetime {
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,0.4) 0 6px, transparent 6px 12px),
+    linear-gradient(160deg, #ffdde1, #ff9fae);
+}
+.game-card.special-persistent {
+  background: linear-gradient(160deg, #e3e7fd, #aab6f2);
+  border-style: dashed;
+}
+.game-card.special-fire {
+  background: linear-gradient(160deg, #ffe9c7, #ffbb70);
+}
 
 /* 일반 모드: 10단위 파스텔 테마 */
 .game-card.decade-0 { background: linear-gradient(160deg, #fff0f4, #ffd3e0); }

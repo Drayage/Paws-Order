@@ -2,11 +2,36 @@
 import { MODES, SPECIAL_INFO, COLOR_INFO, JELLY_COLORS, ANIMAL_AVATARS, ONE_TIME_SPECIALS, PERSISTENT_SPECIALS } from './constants.js';
 import { canPlace, minPlaysRequired, canEndTurn, activeEffects } from './rules.js';
 
-function specialBadgeColor(specialId) {
-  if (specialId === 'fire') return '#f2a65a';
-  if (ONE_TIME_SPECIALS.includes(specialId)) return '#e8798a';
-  if (PERSISTENT_SPECIALS.includes(specialId)) return '#5b9bd9';
-  return '#9c8973';
+// 특수카드 "형태" 분류 — 같은 형태끼리는 배지 색도 통일해 한눈에 구분되게 함
+function specialCategory(infoKey) {
+  if (infoKey === 'fire') return 'fire';
+  if (infoKey === 'joker') return 'joker';
+  if (infoKey === 'range') return 'range';
+  if (ONE_TIME_SPECIALS.includes(infoKey)) return 'onetime';
+  if (PERSISTENT_SPECIALS.includes(infoKey)) return 'persistent';
+  return null;
+}
+
+const CATEGORY_BADGE_COLOR = {
+  onetime: '#e8798a',
+  persistent: '#5b78d9',
+  fire: '#f2a65a',
+  joker: '#a883d9',
+  range: '#4fb8ab',
+};
+
+// 카드가 special/joker/range 중 무엇이든, 탭해서 볼 수 있는 설명 정보를 반환
+export function describeCard(card) {
+  if (card.type === 'joker') return SPECIAL_INFO.joker;
+  if (card.type === 'range') {
+    return {
+      emoji: SPECIAL_INFO.range.emoji,
+      label: `레인지 ${card.lo}-${card.hi}`,
+      desc: `${card.lo}~${card.hi} 범위의 숫자 카드가 맨 위에 있으면 덮을 수 있고, 이 카드 위에는 ${card.lo}~${card.hi} 범위의 숫자만 놓을 수 있어요. (되돌리기 트릭은 적용되지 않아요)`,
+    };
+  }
+  if (card.special) return SPECIAL_INFO[card.special];
+  return null;
 }
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -21,16 +46,17 @@ function cardLabel(card) {
   return String(card.value);
 }
 
-// 카드 배경 테마 클래스: 일반 모드=10단위, 퀵앤이지=색상, 페이스투페이스=카드의 원래 소유자 기준
-// (FTF에서 상대 더미에 선물해도 카드 색은 낸 사람 색을 유지)
+// 카드 배경 테마 클래스: 특수카드=형태별 고정 색, 일반 모드=10단위, 퀵앤이지=색상,
+// 페이스투페이스=카드의 원래 소유자 기준 (FTF에서 상대 더미에 선물해도 카드 색은 낸 사람 색을 유지)
 function cardThemeClass(card, mode, localPlayerId = null) {
   if (card.type !== 'number') return '';
+  if (card.special) return `special-${specialCategory(card.special)}`;
   if (mode === MODES.QUICK) return `jelly-${card.color}`;
   if (mode === MODES.FTF) return card.owner === localPlayerId ? 'owner-mine' : 'owner-theirs';
   return `decade-${Math.min(9, Math.floor(card.value / 10))}`;
 }
 
-export function renderCardEl(card, { selected = false, onClick = null, themeClass = '', trickIcon = null, playable = null } = {}) {
+export function renderCardEl(card, { selected = false, onClick = null, themeClass = '', trickIcon = null, playable = null, onShowInfo = null } = {}) {
   const el = document.createElement('div');
   let cls = `game-card type-${card.type}${themeClass ? ' ' + themeClass : ''}`;
   if (selected) cls += ' selected';
@@ -42,13 +68,19 @@ export function renderCardEl(card, { selected = false, onClick = null, themeClas
   inner.textContent = cardLabel(card);
   el.appendChild(inner);
   const titleParts = [];
-  if (card.special) {
+  const infoKey = card.special || (card.type === 'joker' ? 'joker' : card.type === 'range' ? 'range' : null);
+  if (infoKey) {
+    const info = describeCard(card);
     const badge = document.createElement('span');
     badge.className = 'special-emoji';
-    badge.textContent = SPECIAL_INFO[card.special].emoji;
-    badge.style.background = specialBadgeColor(card.special);
+    badge.textContent = info.emoji;
+    badge.style.background = CATEGORY_BADGE_COLOR[specialCategory(infoKey)] || '#9c8973';
+    if (onShowInfo) {
+      badge.classList.add('tappable');
+      badge.addEventListener('click', (e) => { e.stopPropagation(); onShowInfo(card); });
+    }
     el.appendChild(badge);
-    titleParts.push(`${SPECIAL_INFO[card.special].label} — ${SPECIAL_INFO[card.special].desc}`);
+    titleParts.push(`${info.label} — ${info.desc}`);
   }
   if (trickIcon) {
     const tb = document.createElement('span');
@@ -99,7 +131,7 @@ function renderPile(state, pile, ctx) {
   let topEl;
   if (topCardData) {
     const theme = cardThemeClass(topCardData, state.mode, ctx.localPlayerId);
-    topEl = renderCardEl(topCardData, { themeClass: theme });
+    topEl = renderCardEl(topCardData, { themeClass: theme, onShowInfo: ctx.onShowCardInfo });
     topEl.classList.add('pile-top');
     // 방금 낸 카드 강조 + 놓일 때 이펙트 (이펙트는 최초 렌더링 1회만 재생)
     if (state.lastPlay && state.lastPlay.cardId === topCardData.id) {
@@ -267,6 +299,7 @@ function renderHand(state, ctx) {
       themeClass: theme,
       playable,
       trickIcon,
+      onShowInfo: ctx.onShowCardInfo,
     });
     // 더미를 눌러둔 상태면, 그 더미에 낼 수 있는 카드만 도드라지게
     if (focusPile) {
@@ -370,7 +403,7 @@ export function closeModal() {
 }
 
 // 더미에 놓인 카드 히스토리
-export function buildPileHistoryBody(state, pileId, localPlayerId) {
+export function buildPileHistoryBody(state, pileId, localPlayerId, onShowInfo = null) {
   const pile = state.piles.find((p) => p.id === pileId);
   const wrap = document.createElement('div');
   if (!pile.cards.length) {
@@ -381,7 +414,7 @@ export function buildPileHistoryBody(state, pileId, localPlayerId) {
   row.className = 'pile-history-row';
   pile.cards.forEach((card) => {
     const theme = cardThemeClass(card, state.mode, localPlayerId);
-    row.appendChild(renderCardEl(card, { themeClass: theme }));
+    row.appendChild(renderCardEl(card, { themeClass: theme, onShowInfo }));
   });
   wrap.appendChild(row);
   return wrap;

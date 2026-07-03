@@ -45,6 +45,8 @@ export const SPECIAL_INFO = {
   onePile: { emoji: '1️⃣', label: '외골수 두더지', desc: '맨 위에 있는 동안 한 차례에 한 더미에만 낼 수 있어요.' },
   drawOne: { emoji: '🌱', label: '아껴 뽑기', desc: '맨 위에 있는 동안 차례 끝에 카드를 1장만 뽑아요.' },
   fire: { emoji: '🍞', label: '화난 식빵', desc: '다음 친구 차례가 끝나기 전에 다른 카드로 덮어 달래주세요!' },
+  joker: { emoji: '🐼', label: '조커', desc: '어떤 더미에도 놓을 수 있어요! 대신 이번 차례 안에 숫자 카드로 바로 덮어야 해요.' },
+  range: { emoji: '🏕️', label: '레인지', desc: '범위 안의 숫자 카드가 맨 위에 있으면 덮을 수 있고, 이 카드 위에는 범위 안의 숫자만 놓을 수 있어요. (되돌리기 트릭은 적용되지 않아요)' },
 };
 
 export const JOKER_COUNT = 10;   // 🐼 조커: 어디든 놓지만 같은 차례에 숫자카드로 즉시 덮기
