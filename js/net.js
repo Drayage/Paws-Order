@@ -1,6 +1,6 @@
 // Firebase Realtime Database 멀티플레이 — 호스트 권위 모델
-// 호스트가 게임 상태를 계산해 rooms/{code}/state에 기록하고,
-// 게스트는 rooms/{code}/actions에 액션만 올리면 호스트가 반영해 다시 배포합니다.
+// 호스트가 게임 상태를 계산해 pawsOrder/rooms/{code}/state에 기록하고,
+// 게스트는 pawsOrder/rooms/{code}/actions에 액션만 올리면 호스트가 반영해 다시 배포합니다.
 import { firebaseConfig } from './firebase-config.js';
 import { createGame, playCard, endTurn } from './game.js';
 import { playAiTurn } from './ai.js';
@@ -8,6 +8,9 @@ import { ANIMAL_AVATARS } from './constants.js';
 
 const FIREBASE_APP_URL = 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
 const FIREBASE_DB_URL = 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
+
+// 이 Firebase 프로젝트는 다른 게임들과 공유하므로, 모든 데이터를 이 하위 경로에만 저장해서 섞이지 않게 함
+const APP_ROOT = 'pawsOrder';
 
 let fbPromise = null;
 
@@ -71,12 +74,12 @@ class RoomController {
     this._seenSignals = new Set();
   }
 
-  get roomRef() { return this.fb.ref(this.fb.db, `rooms/${this.code}`); }
-  get metaRef() { return this.fb.ref(this.fb.db, `rooms/${this.code}/meta`); }
-  get playersRef() { return this.fb.ref(this.fb.db, `rooms/${this.code}/players`); }
-  get stateRef() { return this.fb.ref(this.fb.db, `rooms/${this.code}/state`); }
-  get actionsRef() { return this.fb.ref(this.fb.db, `rooms/${this.code}/actions`); }
-  get signalsRef() { return this.fb.ref(this.fb.db, `rooms/${this.code}/signals`); }
+  get roomRef() { return this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}`); }
+  get metaRef() { return this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}/meta`); }
+  get playersRef() { return this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}/players`); }
+  get stateRef() { return this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}/state`); }
+  get actionsRef() { return this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}/actions`); }
+  get signalsRef() { return this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}/signals`); }
 
   onPlayers(cb) {
     this._playersCb = cb;
@@ -114,7 +117,7 @@ class RoomController {
       this._seenSignals.add(key);
       const val = snap.val();
       if (val && val.uid !== this.uid) cb(val);
-      if (this.isHost) setTimeout(() => this.fb.remove(this.fb.ref(this.fb.db, `rooms/${this.code}/signals/${key}`)), 3500);
+      if (this.isHost) setTimeout(() => this.fb.remove(this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}/signals/${key}`)), 3500);
     });
     this._unsubs.push(unsub);
   }
@@ -169,7 +172,7 @@ class RoomController {
     const unsub = this.fb.onChildAdded(this.actionsRef, (snap) => {
       const action = snap.val();
       const key = snap.key;
-      this.fb.remove(this.fb.ref(this.fb.db, `rooms/${this.code}/actions/${key}`));
+      this.fb.remove(this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}/actions/${key}`));
       if (!action || !this.state) return;
       const gid = action.uid; // 게스트 uid == 게임 플레이어 id
       if (action.type === 'play') {
@@ -200,7 +203,7 @@ class RoomController {
   leave() {
     this._unsubs.forEach((u) => { try { u(); } catch (_) { /* noop */ } });
     this._unsubs = [];
-    this.fb.remove(this.fb.ref(this.fb.db, `rooms/${this.code}/players/${this.uid}`)).catch(() => {});
+    this.fb.remove(this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}/players/${this.uid}`)).catch(() => {});
   }
 }
 
@@ -210,28 +213,28 @@ export async function hostRoom({ mode, options, aiCount, name }) {
   const uid = randomUid();
   const controller = new RoomController({ fb, code, uid, isHost: true, mode, options, aiCount, name });
   await fb.set(controller.metaRef, { mode, options, aiCount, hostUid: uid, status: 'lobby', createdAt: Date.now() });
-  await fb.set(fb.ref(fb.db, `rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
+  await fb.set(fb.ref(fb.db, `${APP_ROOT}/rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
   return controller;
 }
 
 export async function joinRoom({ code, name }) {
   const fb = await ensureFirebase();
-  const metaSnap = await fb.get(fb.ref(fb.db, `rooms/${code}/meta`));
+  const metaSnap = await fb.get(fb.ref(fb.db, `${APP_ROOT}/rooms/${code}/meta`));
   const meta = metaSnap.val();
   if (!meta) throw new Error('방을 찾을 수 없어요. 코드를 확인해주세요.');
   if (meta.status !== 'lobby') throw new Error('이미 시작된 게임이에요.');
   const uid = randomUid();
   const controller = new RoomController({ fb, code, uid, isHost: false, mode: meta.mode, options: meta.options, aiCount: meta.aiCount, name });
-  await fb.set(fb.ref(fb.db, `rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
+  await fb.set(fb.ref(fb.db, `${APP_ROOT}/rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
   return controller;
 }
 
 // 새로고침 후 재접속: 저장해둔 code/uid로 같은 방에 다시 붙는다.
-// 실제 게임 상태는 Firebase에 있으므로(호스트도 rooms/{code}/state에 즉시 반영해둠),
+// 실제 게임 상태는 Firebase에 있으므로(호스트도 pawsOrder/rooms/{code}/state에 즉시 반영해둠),
 // 호스트가 새로고침했어도 마지막으로 기록된 state를 그대로 읽어와 이어서 진행할 수 있다.
 export async function resumeRoom({ code, uid, isHost, name }) {
   const fb = await ensureFirebase();
-  const metaSnap = await fb.get(fb.ref(fb.db, `rooms/${code}/meta`));
+  const metaSnap = await fb.get(fb.ref(fb.db, `${APP_ROOT}/rooms/${code}/meta`));
   const meta = metaSnap.val();
   if (!meta) throw new Error('방을 찾을 수 없어요. (만료되었거나 삭제된 방이에요)');
 
@@ -242,7 +245,7 @@ export async function resumeRoom({ code, uid, isHost, name }) {
   controller.status = meta.status;
 
   // 자리를 계속 지키고 있었다는 걸 표시 (없어졌으면 다시 등록)
-  await fb.set(fb.ref(fb.db, `rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
+  await fb.set(fb.ref(fb.db, `${APP_ROOT}/rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
 
   if (isHost) {
     controller.gamePlayerId = uid;

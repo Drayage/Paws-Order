@@ -1,4 +1,4 @@
-const CACHE_NAME = 'paws-order-v4';
+const CACHE_NAME = 'paws-order-v5';
 const APP_SHELL = [
   './',
   './index.html',
@@ -14,6 +14,7 @@ const APP_SHELL = [
   './js/main.js',
   './js/net.js',
   './js/storage.js',
+  './js/sound.js',
   './js/firebase-config.js',
   './icons/icon-16.png',
   './icons/icon-32.png',

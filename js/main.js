@@ -6,6 +6,7 @@ import { renderGame, openModal, closeModal, buildPileHistoryBody, buildDeckModal
 import { buildSignalButtons, isSignalLocked, signalText } from './signals.js';
 import { isFirebaseConfigured, hostRoom, joinRoom, resumeRoom, leaveRoom } from './net.js';
 import { saveSession, loadSession, clearSession } from './storage.js';
+import { sfx, initAudioOnUserGesture, isMuted, toggleMuted } from './sound.js';
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -158,6 +159,7 @@ function ctxForUi() {
     justPlacedCardId: appState.game?.lastPlay && appState.game.lastPlay.cardId !== appState.animatedPlayId
       ? appState.game.lastPlay.cardId : null,
     onSelectCard: (cardId) => {
+      sfx.select();
       appState.selectedCardId = appState.selectedCardId === cardId ? null : cardId;
       appState.focusPileId = null;
       render();
@@ -236,6 +238,7 @@ function openDeckModal(deckKey) {
 }
 
 function flashHint(text) {
+  sfx.invalid();
   const hint = $('#turn-requirement');
   hint.textContent = '❌ ' + text;
   hint.style.color = 'var(--danger)';
@@ -259,9 +262,17 @@ function persistSingleSession() {
 
 function render() {
   if (!appState.game) return;
+  const lastPlay = appState.game.lastPlay;
+  const isNewPlay = lastPlay && lastPlay.cardId !== appState.animatedPlayId;
   renderGame(appState.game, ctxForUi(), appState.bubbles);
   // 이번 렌더에서 '놓이는' 이펙트를 보여줬다면, 다음 렌더부터는 반복 재생하지 않도록 기록
-  if (appState.game.lastPlay) appState.animatedPlayId = appState.game.lastPlay.cardId;
+  if (lastPlay) appState.animatedPlayId = lastPlay.cardId;
+  if (isNewPlay) {
+    const pile = appState.game.piles.find((p) => p.id === lastPlay.pileId);
+    const card = pile?.cards.find((c) => c.id === lastPlay.cardId);
+    const isSpecial = card && (card.special || card.type === 'joker' || card.type === 'range');
+    if (isSpecial) sfx.special(); else sfx.place();
+  }
   persistSingleSession();
 }
 
@@ -279,6 +290,7 @@ function showBubble(playerId, text, duration = 3000) {
 }
 
 function sendLocalSignal(signalId, color) {
+  sfx.signal();
   const text = signalText(signalId, color);
   showBubble(appState.localPlayerId, text);
   if (appState.net) appState.net.dispatchSignal(text);
@@ -290,11 +302,13 @@ function handleGameOver() {
   const state = appState.game;
   if (!state || state.phase === 'playing' || appState.resultShown) return;
   if (state.phase === 'won') {
+    sfx.win();
     appState.resultShown = true;
     showResult();
     return;
   }
   const banner = $('#gameover-banner');
+  if (banner.style.display !== 'flex') sfx.lose();
   $('#gameover-text').textContent = `😿 ${state.loseReason || '게임이 끝났어요'}`;
   banner.style.display = 'flex';
 }
@@ -549,10 +563,12 @@ function bindEvents() {
     const res = endTurn(appState.game, appState.localPlayerId);
     if (!res.ok) flashHint(res.why);
     else {
+      sfx.endTurn();
       // 새로 뽑은 카드에 드로우 이펙트
       appState.drawnIds = new Set(me.hand.filter((c) => !beforeIds.has(c.id)).map((c) => c.id));
       appState.focusPileId = null;
       if (appState.drawnIds.size) {
+        sfx.draw();
         setTimeout(() => { appState.drawnIds = null; render(); }, 1600);
       }
     }
@@ -591,8 +607,20 @@ function bindEvents() {
   $('#modal-backdrop').addEventListener('click', (e) => {
     if (e.target.id === 'modal-backdrop') closeModal();
   });
+
+  // 주요 버튼/카드 클릭에 공통으로 살짝 딸깍 소리를 얹어 조작감을 살림
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.btn, .mode-card, .sort-btn, .signal-grid button, .deck-counter, .pile-inspect')) sfx.click();
+  });
+
+  $('#btn-sound-toggle').addEventListener('click', () => {
+    const muted = toggleMuted();
+    $('#btn-sound-toggle').textContent = muted ? '🔇' : '🔊';
+  });
 }
 
+$('#btn-sound-toggle').textContent = isMuted() ? '🔇' : '🔊';
+initAudioOnUserGesture();
 bindEvents();
 tryResumeSession();
 

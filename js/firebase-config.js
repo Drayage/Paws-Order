@@ -1,12 +1,12 @@
-// Firebase 프로젝트 설정 — 멀티플레이를 쓰려면 아래 값을 본인의 Firebase 프로젝트 값으로 채워주세요.
-// Firebase 콘솔 > 프로젝트 설정 > 일반 탭 > "내 앱" SDK 설정에서 값을 복사할 수 있어요.
-// Realtime Database를 사용하므로 databaseURL이 꼭 필요합니다. (자세한 방법은 README 참고)
+// Firebase 프로젝트 설정
+// 주의: 이 프로젝트(Realtime Database)는 다른 게임들과 공유합니다.
+// 그래서 net.js는 모든 데이터를 "pawsOrder/" 하위 경로에만 저장해서 다른 게임 데이터와 섞이지 않도록 합니다.
 export const firebaseConfig = {
-  apiKey: '',
-  authDomain: '',
-  databaseURL: '',
-  projectId: '',
-  storageBucket: '',
-  messagingSenderId: '',
-  appId: '',
+  apiKey: 'AIzaSyDnEYQRvb16iW0HZyq4bgrvtnPysDbeFBc',
+  authDomain: 'frenzy-49857.firebaseapp.com',
+  databaseURL: 'https://frenzy-49857-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'frenzy-49857',
+  storageBucket: 'frenzy-49857.firebasestorage.app',
+  messagingSenderId: '256453631137',
+  appId: '1:256453631137:web:8cd0946dd629bd5c44a4e0',
 };
