@@ -1,6 +1,6 @@
 // Firebase Realtime Database 멀티플레이 — 호스트 권위 모델
-// 호스트가 게임 상태를 계산해 pawsOrder/rooms/{code}/state에 기록하고,
-// 게스트는 pawsOrder/rooms/{code}/actions에 액션만 올리면 호스트가 반영해 다시 배포합니다.
+// 호스트가 게임 상태를 계산해 games/pawsOrder/rooms/{code}/state에 기록하고,
+// 게스트는 games/pawsOrder/rooms/{code}/actions에 액션만 올리면 호스트가 반영해 다시 배포합니다.
 import { firebaseConfig } from './firebase-config.js';
 import { createGame, playCard, endTurn } from './game.js';
 import { playAiTurn } from './ai.js';
@@ -9,8 +9,9 @@ import { ANIMAL_AVATARS } from './constants.js';
 const FIREBASE_APP_URL = 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
 const FIREBASE_DB_URL = 'https://www.gstatic.com/firebasejs/10.13.0/firebase-database.js';
 
-// 이 Firebase 프로젝트는 다른 게임들과 공유하므로, 모든 데이터를 이 하위 경로에만 저장해서 섞이지 않게 함
-const APP_ROOT = 'pawsOrder';
+// 이 Firebase 프로젝트는 다른 게임들과 공유하며, 보안 규칙이 "games/" 경로만 열려있으므로
+// 그 밑에 우리만의 하위 경로를 둬서 다른 게임 데이터와 섞이지 않게 함
+const APP_ROOT = 'games/pawsOrder';
 
 let fbPromise = null;
 
@@ -230,7 +231,7 @@ export async function joinRoom({ code, name }) {
 }
 
 // 새로고침 후 재접속: 저장해둔 code/uid로 같은 방에 다시 붙는다.
-// 실제 게임 상태는 Firebase에 있으므로(호스트도 pawsOrder/rooms/{code}/state에 즉시 반영해둠),
+// 실제 게임 상태는 Firebase에 있으므로(호스트도 games/pawsOrder/rooms/{code}/state에 즉시 반영해둠),
 // 호스트가 새로고침했어도 마지막으로 기록된 state를 그대로 읽어와 이어서 진행할 수 있다.
 export async function resumeRoom({ code, uid, isHost, name }) {
   const fb = await ensureFirebase();

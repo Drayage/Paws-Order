@@ -36,8 +36,9 @@ python3 -m http.server 8080
 
 방 만들기·참가하기 기능은 Firebase Realtime Database를 사용합니다. 이 저장소에는 이미
 Firebase 설정이 채워져 있어 바로 사용할 수 있어요. **단, 이 Firebase 프로젝트는 다른 게임들과
-공유하는 프로젝트라서, `net.js`가 모든 데이터를 `pawsOrder/` 하위 경로에만 저장하도록 네임스페이스를
-분리해뒀습니다.** 다른 게임의 데이터와 섞이지 않으니 안심하고 쓰셔도 됩니다.
+공유하는 프로젝트라서, `net.js`가 모든 데이터를 이미 규칙(rules)이 열려있는 `games/` 경로 밑의
+`games/pawsOrder/` 하위 경로에만 저장하도록 네임스페이스를 분리해뒀습니다.** 다른 게임의 데이터와
+섞이지 않고, Firebase 콘솔의 보안 규칙을 새로 바꿀 필요도 없어요.
 
 직접 다른 Firebase 프로젝트를 쓰고 싶다면:
 
@@ -72,7 +73,7 @@ js/ai.js             그리디 AI 엔진
 js/ui.js             화면 렌더링
 js/signals.js        이모지 신호등
 js/main.js           화면 전환 및 이벤트 처리
-js/net.js            Firebase 멀티플레이 연동 (모든 경로가 pawsOrder/ 하위로 네임스페이스됨)
+js/net.js            Firebase 멀티플레이 연동 (모든 경로가 games/pawsOrder/ 하위로 네임스페이스됨)
 js/storage.js        새로고침 후 이어하기용 로컬 저장
 js/sound.js           Web Audio로 직접 생성하는 배경음/효과음 (외부 오디오 파일 없음)
 js/firebase-config.js Firebase 설정
