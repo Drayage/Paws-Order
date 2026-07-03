@@ -1,4 +1,4 @@
-const CACHE_NAME = 'paws-order-v2';
+const CACHE_NAME = 'paws-order-v3';
 const APP_SHELL = [
   './',
   './index.html',
