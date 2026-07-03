@@ -28,6 +28,7 @@ const appState = {
   handSort: 'draw',      // draw | asc | color
   focusPileId: null,     // 더미를 눌러 "여기 낼 수 있는 카드" 강조 중인 더미
   drawnIds: null,        // 방금 뽑은 카드 id Set (드로우 이펙트용)
+  animatedPlayId: null,  // 이미 '놓이는' 이펙트를 보여준 카드 id (재렌더링 시 중복 재생 방지)
   bubbles: new Map(),
   bubbleTimers: new Map(),
   resultShown: false,
@@ -127,6 +128,7 @@ function resetGameUiState() {
   appState.selectedCardId = null;
   appState.focusPileId = null;
   appState.drawnIds = null;
+  appState.animatedPlayId = null;
   appState.handSort = 'draw';
   appState.resultShown = false;
   appState.bubbles.clear();
@@ -151,6 +153,9 @@ function ctxForUi() {
     handSort: appState.handSort,
     focusPileId: appState.focusPileId,
     drawnIds: appState.drawnIds,
+    // 이 카드의 '놓이는' 이펙트를 아직 안 보여줬을 때만 재생 (재렌더링 시 반복 재생 방지)
+    justPlacedCardId: appState.game?.lastPlay && appState.game.lastPlay.cardId !== appState.animatedPlayId
+      ? appState.game.lastPlay.cardId : null,
     onSelectCard: (cardId) => {
       appState.selectedCardId = appState.selectedCardId === cardId ? null : cardId;
       appState.focusPileId = null;
@@ -226,6 +231,8 @@ function flashHint(text) {
 function render() {
   if (!appState.game) return;
   renderGame(appState.game, ctxForUi(), appState.bubbles);
+  // 이번 렌더에서 '놓이는' 이펙트를 보여줬다면, 다음 렌더부터는 반복 재생하지 않도록 기록
+  if (appState.game.lastPlay) appState.animatedPlayId = appState.game.lastPlay.cardId;
 }
 
 // 말풍선 표시 (플레이어별 타이머 관리 — 연속 신호에도 자연스럽게)

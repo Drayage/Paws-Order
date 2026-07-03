@@ -101,10 +101,10 @@ function renderPile(state, pile, ctx) {
     const theme = cardThemeClass(topCardData, state.mode, ctx.localPlayerId);
     topEl = renderCardEl(topCardData, { themeClass: theme });
     topEl.classList.add('pile-top');
-    // 방금 낸 카드 강조 + 놓일 때 팡! 이펙트
+    // 방금 낸 카드 강조 + 놓일 때 이펙트 (이펙트는 최초 렌더링 1회만 재생)
     if (state.lastPlay && state.lastPlay.cardId === topCardData.id) {
       topEl.classList.add('last-played');
-      if (Date.now() - state.lastPlay.ts < 1200) topEl.classList.add('just-placed');
+      if (ctx.justPlacedCardId === topCardData.id) topEl.classList.add('just-placed');
     }
   } else {
     topEl = document.createElement('div');

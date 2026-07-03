@@ -50,7 +50,7 @@ export function createGame({ mode, options = {}, players, seed }) {
     piles,
     players: players.map((p) => ({ ...p, hand: [] })),
     handSize,
-    current: 0,
+    current: Math.floor(rng() * players.length), // 선플레이어 랜덤 결정
     turnCount: 0,
     turn: freshTurn(),
     fires: [],           // [{ pileId, cardId, deadline }]
@@ -64,6 +64,7 @@ export function createGame({ mode, options = {}, players, seed }) {
   for (const p of state.players) draw(state, p.id, handSize);
 
   addLog(state, '🌸 게임 시작! 모두 힘내요!');
+  addLog(state, `🎲 ${state.players[state.current].name}부터 시작해요!`);
   checkTurnStart(state);
   return state;
 }
