@@ -45,6 +45,27 @@ function randomUid() {
   return 'u' + Math.random().toString(36).slice(2, 10);
 }
 
+// Firebase Realtime Database는 빈 배열/객체를 저장하면 그 경로를 아예 지워버린다.
+// 그래서 되돌려 받은 상태는 pile.cards, turn.mustCover 같은 필드가 (원래 []였는데) undefined로
+// 올 수 있다 — 이 상태를 순수 게임 로직에 그대로 넘기면 배열 메서드 호출에서 죽으므로,
+// 여기서 배열이어야 하는 필드들을 되살려 정상적인 game.js 상태 모양으로 복원한다.
+function normalizeState(raw) {
+  if (!raw) return raw;
+  raw.piles = (raw.piles || []).map((p) => ({ ...p, cards: p.cards || [] }));
+  raw.players = (raw.players || []).map((p) => ({ ...p, hand: p.hand || [] }));
+  raw.turn = raw.turn || {};
+  raw.turn.plays = raw.turn.plays || [];
+  raw.turn.pilesUsed = raw.turn.pilesUsed || [];
+  raw.turn.mustCover = raw.turn.mustCover || [];
+  raw.fires = raw.fires || [];
+  raw.log = raw.log || [];
+  raw.decks = raw.decks || {};
+  for (const key of Object.keys(raw.decks)) raw.decks[key] = raw.decks[key] || [];
+  raw.catalog = raw.catalog || {};
+  for (const key of Object.keys(raw.catalog)) raw.catalog[key] = raw.catalog[key] || [];
+  return raw;
+}
+
 // 로비 플레이어 목록 + 호스트가 지정한 AI 인원으로 실제 게임 플레이어 배열 구성
 function buildPlayersFromLobby(lobbyPlayers, aiCount, mode) {
   const players = lobbyPlayers.map((p) => ({ id: p.uid, name: p.name, isAI: false }));
@@ -98,7 +119,7 @@ class RoomController {
     if (this.isHost) return; // 호스트는 로컬 상태를 직접 사용
     const unsub = this.fb.onValue(this.stateRef, (snap) => {
       const val = snap.val();
-      if (val) cb(val, this.gamePlayerId);
+      if (val) cb(normalizeState(val), this.gamePlayerId);
     });
     this._unsubs.push(unsub);
     const metaUnsub = this.fb.onValue(this.metaRef, (snap) => {
@@ -252,7 +273,7 @@ export async function resumeRoom({ code, uid, isHost, name }) {
     controller.gamePlayerId = uid;
     if (meta.status === 'playing') {
       const stateSnap = await fb.get(controller.stateRef);
-      controller.state = stateSnap.val();
+      controller.state = normalizeState(stateSnap.val());
       if (!controller.state) throw new Error('게임 상태를 복원하지 못했어요.');
       controller._listenActions();
       controller._runAiChain();
