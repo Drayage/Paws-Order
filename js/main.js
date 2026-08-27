@@ -407,10 +407,27 @@ async function enterMultiplayerGame() {
   appState.net.onSignal(({ uid, text }) => {
     showBubble(uid, text);
   });
+  appState.net.onPeerLeft(() => {
+    if (appState.screen !== 'game') return;
+    notifyPeerLeftAndReturnToMenu();
+  });
   if (appState.net.isHost) {
     appState.game = appState.net.state;
     render();
   }
+}
+
+// 같이 하던 사람이 접속을 끊고 30초 넘게 돌아오지 않으면(watchPresence),
+// 계속 진행 불가능한 판을 붙들고 있지 않도록 알리고 메뉴로 돌려보낸다.
+function notifyPeerLeftAndReturnToMenu() {
+  const msg = document.createElement('p');
+  msg.textContent = '함께하던 동물 친구의 연결이 끊어졌어요. 메뉴로 돌아갑니다.';
+  openModal('🔌 연결 끊김', msg);
+  if (appState.net) leaveRoom(appState.net);
+  appState.net = null;
+  appState.game = null;
+  clearSession();
+  setTimeout(() => { closeModal(); switchScreen('menu'); }, 2600);
 }
 
 // 멀티 플레이는 실제 게임 상태가 Firebase에 있으므로, 재접속에 필요한 최소 정보(방 코드/uid)만 저장

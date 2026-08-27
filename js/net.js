@@ -94,6 +94,7 @@ class RoomController {
     this._gameStateCb = null;
     this._signalCb = null;
     this._seenSignals = new Set();
+    this._presenceTimers = new Map(); // uid -> 이탈 확정 유예 타이머
   }
 
   get roomRef() { return this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}`); }
@@ -119,7 +120,12 @@ class RoomController {
     if (this.isHost) return; // 호스트는 로컬 상태를 직접 사용
     const unsub = this.fb.onValue(this.stateRef, (snap) => {
       const val = snap.val();
-      if (val) cb(normalizeState(val), this.gamePlayerId);
+      if (val) {
+        // watchPresence가 게임 진행 여부(phase)를 판단할 수 있도록 게스트도
+        // 호스트처럼 최신 상태를 this.state에 보관해둔다 (기존엔 host 전용이었음).
+        this.state = normalizeState(val);
+        cb(this.state, this.gamePlayerId);
+      }
     });
     this._unsubs.push(unsub);
     const metaUnsub = this.fb.onValue(this.metaRef, (snap) => {
@@ -129,6 +135,33 @@ class RoomController {
       }
     });
     this._unsubs.push(metaUnsub);
+  }
+
+  // 상대(사람) 플레이어의 접속 이탈 감지: players 목록에서 uid가 사라지고 게임이
+  // 아직 진행 중이면 cb(uid)를 부른다. 새로고침처럼 짧게 끊겼다 바로 돌아오는
+  // 경우를 이탈로 오판하지 않도록 30초 유예 후에만 확정한다.
+  onPeerLeft(cb) {
+    let known = null;
+    const unsub = this.fb.onValue(this.playersRef, (snap) => {
+      const val = snap.val() || {};
+      const uids = new Set(Object.keys(val));
+      if (known) {
+        for (const uid of known) {
+          if (uids.has(uid)) {
+            const t = this._presenceTimers.get(uid);
+            if (t) { clearTimeout(t); this._presenceTimers.delete(uid); }
+          } else if (!this._presenceTimers.has(uid)) {
+            const t = setTimeout(() => {
+              this._presenceTimers.delete(uid);
+              if (this.state && this.state.phase === 'playing') cb(uid);
+            }, 30000);
+            this._presenceTimers.set(uid, t);
+          }
+        }
+      }
+      known = uids;
+    });
+    this._unsubs.push(unsub);
   }
 
   onSignal(cb) {
@@ -225,8 +258,17 @@ class RoomController {
   leave() {
     this._unsubs.forEach((u) => { try { u(); } catch (_) { /* noop */ } });
     this._unsubs = [];
+    this._presenceTimers.forEach((t) => clearTimeout(t));
+    this._presenceTimers.clear();
     this.fb.remove(this.fb.ref(this.fb.db, `${APP_ROOT}/rooms/${this.code}/players/${this.uid}`)).catch(() => {});
   }
+}
+
+// 내 플레이어 항목이 예기치 않게 끊겼을 때(탭 종료/새로고침/네트워크 단절) 자동으로
+// 지워지도록 등록. 방(room) 자체나 게임 state는 지우지 않는다 — 재접속 시
+// resumeRoom이 state를 그대로 복원해야 하므로.
+function trackPlayerPresence(fb, code, uid) {
+  fb.onDisconnect(fb.ref(fb.db, `${APP_ROOT}/rooms/${code}/players/${uid}`)).remove();
 }
 
 export async function hostRoom({ mode, options, aiCount, name }) {
@@ -236,6 +278,7 @@ export async function hostRoom({ mode, options, aiCount, name }) {
   const controller = new RoomController({ fb, code, uid, isHost: true, mode, options, aiCount, name });
   await fb.set(controller.metaRef, { mode, options, aiCount, hostUid: uid, status: 'lobby', createdAt: Date.now() });
   await fb.set(fb.ref(fb.db, `${APP_ROOT}/rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
+  trackPlayerPresence(fb, code, uid);
   return controller;
 }
 
@@ -248,6 +291,7 @@ export async function joinRoom({ code, name }) {
   const uid = randomUid();
   const controller = new RoomController({ fb, code, uid, isHost: false, mode: meta.mode, options: meta.options, aiCount: meta.aiCount, name });
   await fb.set(fb.ref(fb.db, `${APP_ROOT}/rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
+  trackPlayerPresence(fb, code, uid);
   return controller;
 }
 
@@ -268,6 +312,7 @@ export async function resumeRoom({ code, uid, isHost, name }) {
 
   // 자리를 계속 지키고 있었다는 걸 표시 (없어졌으면 다시 등록)
   await fb.set(fb.ref(fb.db, `${APP_ROOT}/rooms/${code}/players/${uid}`), { name, joinedAt: Date.now() });
+  trackPlayerPresence(fb, code, uid);
 
   if (isHost) {
     controller.gamePlayerId = uid;
